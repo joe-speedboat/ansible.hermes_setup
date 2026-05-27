@@ -33,10 +33,22 @@
     'Downloading' in (hermes_playwright_browser_install.stdout | default(''))
   when: hermes_playwright_enabled | bool
 
-- name: Show Playwright validation command
+- name: Run Playwright Chromium smoke test
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    node -e '(async()=>{const {chromium}=require("playwright"); const browser=await chromium.launch({headless:true}); const page=await browser.newPage(); await page.goto("data:text/html,<h1>playwright-ok</h1>"); const text=await page.textContent("h1"); if (text !== "playwright-ok") { throw new Error("Unexpected page text: " + text); } console.log(text); await browser.close();})().catch(error=>{console.error(error.stack||error); process.exit(1);})'
+  args:
+    chdir: "{{ hermes_project_path }}"
+  register: hermes_playwright_smoke_test
+  changed_when: false
+  when:
+    - hermes_playwright_enabled | bool
+    - hermes_playwright_smoke_test_enabled | bool
+
+- name: Show Playwright validation result
   ansible.builtin.debug:
     msg:
       - "Playwright support is installed for user {{ hermes_user }}."
-      - "Validate manually with: sudo -iu {{ hermes_user }} bash -lc 'cd {{ hermes_project_path }} && npx playwright --version'"
+      - "Chromium smoke test: {{ hermes_playwright_smoke_test.stdout | default('skipped') }}"
   when: hermes_playwright_enabled | bool
 ...
