@@ -9,8 +9,8 @@ This role is intentionally conservative for sysadmin use:
 - installs Hermes via the official upstream installer as user `hermes` (`--skip-setup --skip-browser` for non-interactive Ansible runs)
 - optionally writes non-secret OpenAI Codex defaults into Hermes config
 - prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
-- optionally installs and manages a `hermes-gateway.service` systemd user service
-- optionally installs and manages a `hermes-dashboard.service` systemd user service
+- installs, enables, and starts a `hermes-gateway.service` systemd user service by default
+- installs, enables, and starts a `hermes-dashboard.service` systemd user service by default
 - optionally installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries
 
 ## Requirements
@@ -36,11 +36,11 @@ Important defaults from `defaults/main.yml`:
 
 - `hermes_user`: Linux user to create. Default: `hermes`
 - `hermes_home`: home directory. Default: `/home/hermes`
-- `hermes_gateway_enabled`: install gateway user service. Default: `false`
+- `hermes_gateway_enabled`: install gateway user service. Default: `true`
 - `hermes_gateway_service_enabled`: enable gateway service at boot when gateway is installed. Default: `true`
 - `hermes_gateway_service_state`: gateway runtime state when gateway is installed. Default: `started`
 - `hermes_gateway_extra_args`: extra args appended to `hermes gateway run --replace`. Default: `""`
-- `hermes_dashboard_enabled`: install dashboard user service. Default: `false`
+- `hermes_dashboard_enabled`: install dashboard user service. Default: `true`
 - `hermes_dashboard_service_enabled`: enable dashboard service at boot when dashboard is installed. Default: `true`
 - `hermes_dashboard_service_state`: dashboard runtime state when dashboard is installed. Default: `started`
 - `hermes_dashboard_host`: dashboard bind address. Default: `0.0.0.0`
@@ -98,14 +98,28 @@ If `hermes_gateway_enabled: true`, check the gateway user service:
 
 ```bash
 sudo -iu hermes systemctl --user status hermes-gateway.service --no-pager
+sudo -iu hermes systemctl --user is-enabled hermes-gateway.service
 ```
 
 If `hermes_dashboard_enabled: true`, check the dashboard:
 
 ```bash
 sudo -iu hermes systemctl --user status hermes-dashboard.service --no-pager
+sudo -iu hermes systemctl --user is-enabled hermes-dashboard.service
 curl -fsS http://127.0.0.1:8080 >/dev/null
 ```
+
+The role does **not** open the firewall for the dashboard. If remote browser access is required, explicitly allow the trusted source only. Example for one admin IP or subnet:
+
+```bash
+sudo firewall-cmd --permanent \
+  --add-rich-rule='rule family="ipv4" source address="192.0.2.10/32" port protocol="tcp" port="8080" accept'
+sudo firewall-cmd --permanent \
+  --add-rich-rule='rule family="ipv4" source address="192.0.2.0/24" port protocol="tcp" port="8080" accept'
+sudo firewall-cmd --reload
+```
+
+Prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth for production.
 
 If Playwright is enabled, the role installs the Rocky/RHEL runtime libraries via `dnf`, installs Chromium with `npx playwright install chromium`, checks direct shared-library dependencies with `ldd`, and then runs a real Chromium headless smoke test. Manual checks:
 
@@ -118,25 +132,30 @@ The direct `dnf` package list is intentional. Playwright's own `npx playwright i
 
 ## Messaging Gateway / Telegram Pairing
 
-To configure Telegram or another messenger, run the interactive gateway wizard as the `hermes` user:
+To reconfigure the existing Hermes install quickly, use:
+
+```bash
+sudo -iu hermes hermes setup --quick
+```
+
+For messaging, the more important step is gateway/platform pairing. Configure Telegram or another messenger with the gateway wizard as the `hermes` user:
 
 ```bash
 sudo -iu hermes hermes gateway setup
 ```
 
-For Telegram, choose Telegram in the wizard and provide the bot token from BotFather. If the role was run with `hermes_gateway_enabled: true`, it already installed/enabled `hermes-gateway.service`; restart it after changing gateway config:
+For Telegram, choose Telegram in the wizard and provide the bot token from BotFather. The role installs and enables `hermes-gateway.service` by default; restart it after changing gateway config:
 
 ```bash
 sudo -iu hermes systemctl --user restart hermes-gateway.service
 sudo -iu hermes systemctl --user status hermes-gateway.service --no-pager
 ```
 
-If `hermes_gateway_enabled` is left at the default `false`, install the gateway manually instead:
+Restart both role-managed services as the `hermes` user:
 
 ```bash
-sudo -iu hermes hermes gateway install
-sudo -iu hermes hermes gateway start
-sudo -iu hermes hermes gateway status
+sudo -iu hermes systemctl --user restart hermes-gateway.service
+sudo -iu hermes systemctl --user restart hermes-dashboard.service
 ```
 
 When a user messages the bot, approve the pairing code:
@@ -149,7 +168,7 @@ sudo -iu hermes hermes pairing approve telegram <CODE>
 ## Security Notes
 
 - The `hermes` user is deliberately not added to `wheel` or any sudo group.
-- The dashboard is disabled by default. Enable it with `hermes_dashboard_enabled: true`. If enabled, the default binds to `0.0.0.0:8080` with `--insecure` because that matches the lab/server reference setup. For production, prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth.
+- The dashboard service is enabled by default and binds to `0.0.0.0:8080` with `--insecure` because that matches the lab/server reference setup. The firewall is intentionally not opened by this role. For production, prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth.
 - Secrets belong in `/home/hermes/.hermes/.env`, `/home/hermes/.hermes/auth.json`, or Hermes' auth store. Do not put tokens into Ansible vars or Git.
 
 ## Manual Setup Documentation

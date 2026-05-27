@@ -113,12 +113,14 @@ Alternative:
 sudo -iu hermes hermes model
 ```
 
-## 6. Optional Gateway systemd User Service
+## 6. Gateway systemd User Service
 
-The Ansible role only installs this service when:
+The Ansible role installs and enables this service by default:
 
 ```yaml
 hermes_gateway_enabled: true
+hermes_gateway_service_enabled: true
+hermes_gateway_service_state: started
 ```
 
 Run `hermes gateway setup` first if you want a configured platform such as Telegram, Discord, Slack, or Matrix.
@@ -184,14 +186,21 @@ sudo runuser -u hermes -- env \
   XDG_RUNTIME_DIR=/run/user/$(id -u hermes) \
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u hermes)/bus \
   systemctl --user status hermes-gateway.service --no-pager
+
+sudo runuser -u hermes -- env \
+  XDG_RUNTIME_DIR=/run/user/$(id -u hermes) \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u hermes)/bus \
+  systemctl --user is-enabled hermes-gateway.service
 ```
 
-## 7. Optional Dashboard systemd User Service
+## 7. Dashboard systemd User Service
 
-The Ansible role only installs this service when:
+The Ansible role installs and enables this service by default:
 
 ```yaml
 hermes_dashboard_enabled: true
+hermes_dashboard_service_enabled: true
+hermes_dashboard_service_state: started
 ```
 
 Create the user service directory:
@@ -256,30 +265,55 @@ sudo runuser -u hermes -- env \
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u hermes)/bus \
   systemctl --user status hermes-dashboard.service --no-pager
 
+sudo runuser -u hermes -- env \
+  XDG_RUNTIME_DIR=/run/user/$(id -u hermes) \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u hermes)/bus \
+  systemctl --user is-enabled hermes-dashboard.service
+
 curl -fsS http://127.0.0.1:8080 >/dev/null
+```
+
+The role does **not** open `8080/tcp` in firewalld. Local checks work, but remote browser access needs an explicit rule for a trusted source IP/subnet. Examples:
+
+```bash
+# Single admin workstation
+sudo firewall-cmd --permanent \
+  --add-rich-rule='rule family="ipv4" source address="192.0.2.10/32" port protocol="tcp" port="8080" accept'
+
+# Admin subnet
+sudo firewall-cmd --permanent \
+  --add-rich-rule='rule family="ipv4" source address="192.0.2.0/24" port protocol="tcp" port="8080" accept'
+
+sudo firewall-cmd --reload
+sudo firewall-cmd --list-rich-rules
 ```
 
 ## 8. Pair Messaging Platforms such as Telegram
 
-Run the Hermes gateway setup wizard as the `hermes` user:
+To reconfigure missing/basic Hermes settings quickly:
+
+```bash
+sudo -iu hermes hermes setup --quick
+```
+
+For messaging, the more important step is pairing a messenger. Run the Hermes gateway setup wizard as the `hermes` user:
 
 ```bash
 sudo -iu hermes hermes gateway setup
 ```
 
-For Telegram, select Telegram in the wizard and enter the bot token from BotFather. If the service was installed by the role or by section 6, restart it:
+For Telegram, select Telegram in the wizard and enter the bot token from BotFather. Then restart the already enabled gateway service:
 
 ```bash
 sudo -iu hermes systemctl --user restart hermes-gateway.service
 sudo -iu hermes systemctl --user status hermes-gateway.service --no-pager
 ```
 
-If you did not install the role-managed service, use Hermes' built-in installer instead:
+Restart both role-managed services as the `hermes` user:
 
 ```bash
-sudo -iu hermes hermes gateway install
-sudo -iu hermes hermes gateway start
-sudo -iu hermes hermes gateway status
+sudo -iu hermes systemctl --user restart hermes-gateway.service
+sudo -iu hermes systemctl --user restart hermes-dashboard.service
 ```
 
 When a user sends a message to the bot, Hermes creates a pending pairing code. List and approve it:
