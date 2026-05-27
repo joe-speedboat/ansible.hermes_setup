@@ -211,11 +211,13 @@ Install runtime libraries as admin/root:
 
 ```bash
 sudo dnf install -y \
-  nspr nss \
+  liberation-fonts dejavu-sans-fonts pulseaudio-libs libxshmfence \
+  nspr nss nss-util \
   atk at-spi2-atk at-spi2-core \
   libX11 libXcomposite libXdamage libXext libXfixes libXrandr \
   libxcb libxkbcommon \
-  mesa-libgbm libdrm libxshmfence \
+  cups-libs \
+  mesa-libgbm libdrm \
   alsa-lib \
   pango cairo gdk-pixbuf2 gtk3
 ```
