@@ -16,6 +16,9 @@ galaxy_info:
     - agent
     - rocky
     - dashboard
+    - nginx
+    - reverseproxy
+    - basicauth
     - playwright
     - codex
 dependencies: []

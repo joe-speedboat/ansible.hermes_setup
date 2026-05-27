@@ -1,0 +1,185 @@
+---
+- name: Validate Hermes nginx reverse proxy settings
+  ansible.builtin.assert:
+    that:
+      - hermes_nginx_fqdn | length > 0
+      - hermes_dashboard_host in ['127.0.0.1', 'localhost', '::1']
+      - hermes_nginx_tls_enabled | bool
+      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_nginx_effective_basic_auth_users | length > 0)
+      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_nginx_basic_auth_users | length > 0) or (hermes_nginx_basic_auth_password != 'changeme')
+    fail_msg: >-
+      hermes_nginx_enabled requires a non-empty hermes_nginx_fqdn, a loopback-only
+      hermes_dashboard_host, TLS enabled, at least one Basic Auth user when Basic Auth is enabled,
+      and a non-default Basic Auth password for real deployments.
+      Use one DNS vhost per Hermes Linux user and proxy to that user's loopback dashboard port.
+  vars:
+    hermes_nginx_effective_basic_auth_users: >-
+      {{
+        hermes_nginx_basic_auth_users
+        if (hermes_nginx_basic_auth_users | length > 0)
+        else [{'name': hermes_nginx_basic_auth_user, 'password': hermes_nginx_basic_auth_password}]
+      }}
+  no_log: "{{ hermes_nginx_basic_auth_enabled | bool }}"
+  when: hermes_nginx_enabled | bool
+
+- name: Install nginx for Hermes reverse proxy
+  ansible.builtin.dnf:
+    name:
+      - nginx
+      - openssl
+      - policycoreutils-python-utils
+    state: present
+  when: hermes_nginx_enabled | bool
+
+- name: Ensure Hermes nginx TLS directory exists
+  ansible.builtin.file:
+    path: "{{ hermes_nginx_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_tls_enabled | bool
+
+- name: Generate self-signed Hermes nginx TLS certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:4096
+      - -sha256
+      - -days
+      - "825"
+      - -nodes
+      - -keyout
+      - "{{ hermes_nginx_tls_key }}"
+      - -out
+      - "{{ hermes_nginx_tls_cert }}"
+      - -subj
+      - "/CN={{ hermes_nginx_fqdn }}"
+      - -addext
+      - "subjectAltName=DNS:{{ hermes_nginx_fqdn }}"
+    creates: "{{ hermes_nginx_tls_cert }}"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_tls_enabled | bool
+    - hermes_nginx_generate_self_signed_cert | bool
+
+- name: Set Hermes nginx TLS private key permissions
+  ansible.builtin.file:
+    path: "{{ hermes_nginx_tls_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_tls_enabled | bool
+
+- name: Set Hermes nginx TLS certificate permissions
+  ansible.builtin.file:
+    path: "{{ hermes_nginx_tls_cert }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_tls_enabled | bool
+
+- name: Build Hermes nginx Basic Auth user list
+  ansible.builtin.set_fact:
+    hermes_nginx_effective_basic_auth_users: >-
+      {{
+        hermes_nginx_basic_auth_users
+        if (hermes_nginx_basic_auth_users | length > 0)
+        else [{'name': hermes_nginx_basic_auth_user, 'password': hermes_nginx_basic_auth_password}]
+      }}
+  no_log: true
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_basic_auth_enabled | bool
+
+- name: Write Hermes nginx Basic Auth password file
+  ansible.builtin.copy:
+    dest: "{{ hermes_nginx_basic_auth_file }}"
+    owner: root
+    group: nginx
+    mode: "0640"
+    content: |
+      {% for user in hermes_nginx_effective_basic_auth_users -%}
+      {{ user.name }}:{{ user.password | password_hash('sha512', user.name) }}
+      {% endfor -%}
+  no_log: true
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_basic_auth_enabled | bool
+
+- name: Remove Hermes nginx Basic Auth password file when disabled
+  ansible.builtin.file:
+    path: "{{ hermes_nginx_basic_auth_file }}"
+    state: absent
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - not (hermes_nginx_basic_auth_enabled | bool)
+
+- name: Write Hermes nginx reverse proxy config
+  ansible.builtin.template:
+    src: nginx-hermes.conf.j2
+    dest: "{{ hermes_nginx_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart nginx
+  when: hermes_nginx_enabled | bool
+
+- name: Allow nginx to proxy Hermes dashboard under SELinux
+  ansible.builtin.command:
+    cmd: setsebool -P httpd_can_network_connect 1
+  changed_when: false
+  failed_when: false
+  when: hermes_nginx_enabled | bool
+
+- name: Validate nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+  when: hermes_nginx_enabled | bool
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+  when: hermes_nginx_enabled | bool
+
+- name: Open http/https in firewalld for Hermes nginx
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--add-service={{ item }}"
+  loop:
+    - http
+    - https
+  register: hermes_nginx_firewalld_result
+  changed_when: "'success' in hermes_nginx_firewalld_result.stdout"
+  failed_when:
+    - hermes_nginx_firewalld_result.rc != 0
+    - "'ALREADY_ENABLED' not in hermes_nginx_firewalld_result.stderr"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_enable_firewall | bool
+
+- name: Reload firewalld after Hermes nginx service changes
+  ansible.builtin.command:
+    cmd: firewall-cmd --reload
+  changed_when: false
+  failed_when: false
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_enable_firewall | bool
+...
