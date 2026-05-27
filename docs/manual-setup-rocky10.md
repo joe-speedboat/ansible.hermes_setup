@@ -220,7 +220,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/home/hermes/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main dashboard --port 8080 --host 0.0.0.0 --insecure
+ExecStart=/home/hermes/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main dashboard --port 8080 --host 127.0.0.1
 WorkingDirectory=/home/hermes/.hermes/hermes-agent
 Environment="PATH=/home/hermes/.hermes/hermes-agent/venv/bin:/home/hermes/.hermes/hermes-agent/node_modules/.bin:/home/hermes/.hermes/node/bin:/home/hermes/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="VIRTUAL_ENV=/home/hermes/.hermes/hermes-agent/venv"
@@ -273,22 +273,101 @@ sudo runuser -u hermes -- env \
 curl -fsS http://127.0.0.1:8080 >/dev/null
 ```
 
-The role does **not** open `8080/tcp` in firewalld. Local checks work, but remote browser access needs an explicit rule for a trusted source IP/subnet. Examples:
+The dashboard listens on loopback only. Do **not** open `8080/tcp` in firewalld for browser access. Use SSH tunnelling or the nginx reverse proxy pattern below.
+
+## 8. Optional nginx HTTPS + Basic Auth Reverse Proxy
+
+The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. For manual setup, install nginx and keep the Hermes dashboard bound to `127.0.0.1`:
 
 ```bash
-# Single admin workstation
-sudo firewall-cmd --permanent \
-  --add-rich-rule='rule family="ipv4" source address="192.0.2.10/32" port protocol="tcp" port="8080" accept'
-
-# Admin subnet
-sudo firewall-cmd --permanent \
-  --add-rich-rule='rule family="ipv4" source address="192.0.2.0/24" port protocol="tcp" port="8080" accept'
-
-sudo firewall-cmd --reload
-sudo firewall-cmd --list-rich-rules
+sudo dnf install -y nginx openssl
+sudo mkdir -p /etc/pki/tls/hermes
+sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
+  -keyout /etc/pki/tls/hermes/tls.key \
+  -out /etc/pki/tls/hermes/tls.crt \
+  -subj '/CN=hermes.example.ch' \
+  -addext 'subjectAltName=DNS:hermes.example.ch'
+sudo chmod 0600 /etc/pki/tls/hermes/tls.key
 ```
 
-## 8. Pair Messaging Platforms such as Telegram
+Create `/etc/nginx/.htpasswd-hermes` with a SHA-512 crypt hash. Use a real password, ideally sourced from a secret manager or Ansible Vault:
+
+```bash
+python3 - <<'PY' | sudo tee /etc/nginx/.htpasswd-hermes >/dev/null
+import crypt, getpass
+user = 'chris'
+password = getpass.getpass('Basic Auth password: ')
+print(f'{user}:{crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))}')
+PY
+sudo chown root:nginx /etc/nginx/.htpasswd-hermes
+sudo chmod 0640 /etc/nginx/.htpasswd-hermes
+```
+
+Create `/etc/nginx/conf.d/hermes.conf`:
+
+```nginx
+server {
+    listen 80;
+    server_name hermes.example.ch;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name hermes.example.ch;
+
+    ssl_certificate /etc/pki/tls/hermes/tls.crt;
+    ssl_certificate_key /etc/pki/tls/hermes/tls.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 100m;
+
+    auth_basic "Hermes";
+    auth_basic_user_file /etc/nginx/.htpasswd-hermes;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host 127.0.0.1:8080;
+        proxy_set_header Origin "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Authorization "";
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+        proxy_cache off;
+    }
+}
+```
+
+Enable nginx and open only HTTP/HTTPS:
+
+```bash
+sudo setsebool -P httpd_can_network_connect 1
+sudo nginx -t
+sudo systemctl enable --now nginx
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --reload
+```
+
+Verify:
+
+```bash
+curl -skI https://hermes.example.ch/ | sed -n '1,8p'
+curl -skI -u chris:'<password>' https://hermes.example.ch/ | sed -n '1,8p'
+```
+
+For multiple Hermes users, use one DNS vhost per Linux user and dashboard port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
+
+## 9. Pair Messaging Platforms such as Telegram
 
 To reconfigure missing/basic Hermes settings quickly:
 
@@ -331,7 +410,7 @@ sudo -iu hermes hermes gateway stop
 sudo -iu hermes hermes gateway status
 ```
 
-## 9. Playwright Setup
+## 10. Playwright Setup
 
 The Ansible role installs Playwright support by default:
 
@@ -391,12 +470,10 @@ Expected output:
 playwright-ok
 ```
 
-## 10. Production Hardening Hints
+## 11. Production Hardening Hints
 
-For production, do not expose the dashboard directly unless the surrounding network is trusted. Prefer one of these patterns:
+For production dashboard access, prefer `hermes_nginx_enabled: true`: keep the dashboard loopback-only and expose only nginx HTTPS with Basic Auth. SSH tunnelling is also fine for single-admin maintenance. Do not expose `8080/tcp` directly unless the surrounding network is trusted and separately protected.
 
-- bind the dashboard to `127.0.0.1` and use SSH tunnelling
-- place it behind a reverse proxy with TLS and authentication
-- restrict access with firewall rules or VPN
+For multiple operators or customers, use one Linux user and one DNS vhost per Hermes instance. Subfolder deployments are intentionally avoided because Hermes dashboard uses root-relative `/api/...` and WebSocket endpoints.
 
-Secrets should never be stored in this repository or in role variables.
+Secrets should never be stored in this repository. Put Hermes provider secrets in the user's Hermes home or auth store, and put nginx Basic Auth passwords in Ansible Vault or another secret manager.

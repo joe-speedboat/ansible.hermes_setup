@@ -1,4 +1,9 @@
 ---
-# This role currently manages services directly in tasks because systemd user
+# This role mostly manages services directly in tasks because systemd user
 # services require the target user's DBus runtime environment.
+
+- name: restart nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: restarted
 ...

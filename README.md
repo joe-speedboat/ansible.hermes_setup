@@ -10,7 +10,8 @@ This role is intentionally conservative for sysadmin use:
 - optionally writes non-secret OpenAI Codex defaults into Hermes config
 - prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
 - installs, enables, and starts a `hermes-gateway.service` systemd user service by default
-- installs, enables, and starts a `hermes-dashboard.service` systemd user service by default
+- installs, enables, and starts a loopback-only `hermes-dashboard.service` systemd user service by default
+- optionally exposes the dashboard through nginx HTTPS + Basic Auth
 - installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries by default
 
 ## Requirements
@@ -19,6 +20,7 @@ This role is intentionally conservative for sysadmin use:
 - Ansible 2.9 or newer
 - root or passwordless sudo access for package installation, user creation, linger, and service setup
 - outbound HTTPS access from the target host for the Hermes installer and the default Playwright browser download
+- DNS records for every public Hermes dashboard vhost when `hermes_nginx_enabled: true`
 
 ## Installation
 
@@ -43,9 +45,20 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_enabled`: install dashboard user service. Default: `true`
 - `hermes_dashboard_service_enabled`: enable dashboard service at boot when dashboard is installed. Default: `true`
 - `hermes_dashboard_service_state`: dashboard runtime state when dashboard is installed. Default: `started`
-- `hermes_dashboard_host`: dashboard bind address. Default: `0.0.0.0`
+- `hermes_dashboard_host`: dashboard bind address. Default: `127.0.0.1`
 - `hermes_dashboard_port`: dashboard port. Default: `8080`
-- `hermes_dashboard_insecure`: pass `--insecure` to the dashboard. Default: `true`
+- `hermes_dashboard_insecure`: pass `--insecure` to the dashboard. Default: `false`
+- `hermes_nginx_enabled`: install nginx HTTPS reverse proxy for the dashboard. Default: `false`
+- `hermes_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: target FQDN/inventory name
+- `hermes_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/hermes.conf`
+- `hermes_nginx_enable_firewall`: open `http` and `https` in firewalld. Default: `true`
+- `hermes_nginx_tls_dir`: directory for role-managed self-signed TLS material. Default: `/etc/pki/tls/hermes`
+- `hermes_nginx_generate_self_signed_cert`: generate a self-signed cert when no external cert is provided. Default: `true`
+- `hermes_nginx_basic_auth_enabled`: enable nginx Basic Auth. Default: `true`
+- `hermes_nginx_basic_auth_file`: htpasswd file path. Default: `/etc/nginx/.htpasswd-hermes`
+- `hermes_nginx_basic_auth_user`: single Basic Auth username fallback. Default: `hermes`
+- `hermes_nginx_basic_auth_password`: single Basic Auth password fallback. Default: `changeme`
+- `hermes_nginx_basic_auth_users`: optional list of Basic Auth users. Default: `[]`
 - `configure_codex`: configure non-secret Codex defaults. Default: `true`
 - `hermes_codex_provider`: default provider. Default: `openai-codex`
 - `hermes_codex_model`: default model. Default: `gpt-5.5`
@@ -54,7 +67,9 @@ Important defaults from `defaults/main.yml`:
 - `hermes_playwright_ldd_check_enabled`: run `ldd` against Playwright's Chromium headless shell and fail if direct shared libraries are missing. Default: `true`
 - `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
 
-## Example Playbook
+> Override `hermes_nginx_basic_auth_password` or use `hermes_nginx_basic_auth_users` with Ansible Vault for every deployment that enables nginx. The default `hermes` / `changeme` pair is intentionally rejected when `hermes_nginx_enabled: true`.
+
+## Example Playbook: single Hermes dashboard behind nginx
 
 ```yaml
 ---
@@ -67,10 +82,71 @@ Important defaults from `defaults/main.yml`:
         configure_codex: true
         hermes_gateway_enabled: true
         hermes_dashboard_enabled: true
-        hermes_dashboard_host: 0.0.0.0
+        hermes_dashboard_host: 127.0.0.1
         hermes_dashboard_port: 8080
+        hermes_dashboard_insecure: false
+
+        hermes_nginx_enabled: true
+        hermes_nginx_fqdn: hermes.example.ch
+        hermes_nginx_basic_auth_user: chris
+        hermes_nginx_basic_auth_password: "{{ vault_hermes_dashboard_password }}"
 ...
 ```
+
+## Example Playbook: multiple Hermes users via DNS vhosts
+
+Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes instance. This avoids subfolder rewrites for `/api/...` and WebSocket endpoints.
+
+```yaml
+---
+- name: Install multiple Hermes dashboard instances
+  hosts: hermes_servers
+  become: true
+  vars:
+    hermes_instances:
+      - user: hermes-chris
+        fqdn: chris-hermes.example.ch
+        dashboard_port: 8081
+        auth_user: chris
+        auth_password: "{{ vault_hermes_chris_password }}"
+      - user: hermes-dev
+        fqdn: dev-hermes.example.ch
+        dashboard_port: 8082
+        auth_user: dev
+        auth_password: "{{ vault_hermes_dev_password }}"
+  tasks:
+    - name: Install Hermes instance
+      ansible.builtin.include_role:
+        name: joe-speedboat.hermes_setup
+      loop: "{{ hermes_instances }}"
+      loop_control:
+        loop_var: hermes_instance
+      vars:
+        hermes_user: "{{ hermes_instance.user }}"
+        hermes_group: "{{ hermes_instance.user }}"
+        hermes_home: "/home/{{ hermes_instance.user }}"
+
+        hermes_dashboard_host: 127.0.0.1
+        hermes_dashboard_port: "{{ hermes_instance.dashboard_port }}"
+        hermes_dashboard_insecure: false
+
+        hermes_nginx_enabled: true
+        hermes_nginx_fqdn: "{{ hermes_instance.fqdn }}"
+        hermes_nginx_conf: "/etc/nginx/conf.d/hermes-{{ hermes_instance.user }}.conf"
+        hermes_nginx_tls_dir: "/etc/pki/tls/hermes-{{ hermes_instance.user }}"
+        hermes_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/tls.crt"
+        hermes_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/tls.key"
+        hermes_nginx_basic_auth_file: "/etc/nginx/.htpasswd-hermes-{{ hermes_instance.user }}"
+        hermes_nginx_basic_auth_user: "{{ hermes_instance.auth_user }}"
+        hermes_nginx_basic_auth_password: "{{ hermes_instance.auth_password }}"
+...
+```
+
+## Why vhosts instead of subfolders?
+
+Hermes dashboard uses root-relative frontend assets, REST API routes under `/api/...`, and WebSocket endpoints such as `/api/pty`, `/api/ws`, `/api/pub`, and `/api/events`. DNS vhosts keep those paths unchanged per instance. Subfolder deployments would require fragile path rewriting and are not recommended.
+
+The nginx template also forwards `Host: 127.0.0.1:<port>` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. Basic Auth credentials are not forwarded to the Hermes backend.
 
 ## After the Role Run
 
@@ -100,7 +176,7 @@ sudo -iu hermes systemctl --user status hermes-gateway.service --no-pager
 sudo -iu hermes systemctl --user is-enabled hermes-gateway.service
 ```
 
-If `hermes_dashboard_enabled: true`, check the dashboard:
+If `hermes_dashboard_enabled: true`, check the loopback dashboard:
 
 ```bash
 sudo -iu hermes systemctl --user status hermes-dashboard.service --no-pager
@@ -108,17 +184,15 @@ sudo -iu hermes systemctl --user is-enabled hermes-dashboard.service
 curl -fsS http://127.0.0.1:8080 >/dev/null
 ```
 
-The role does **not** open the firewall for the dashboard. If remote browser access is required, explicitly allow the trusted source only. Example for one admin IP or subnet:
+If `hermes_nginx_enabled: true`, check nginx and the authenticated HTTPS endpoint:
 
 ```bash
-sudo firewall-cmd --permanent \
-  --add-rich-rule='rule family="ipv4" source address="192.0.2.10/32" port protocol="tcp" port="8080" accept'
-sudo firewall-cmd --permanent \
-  --add-rich-rule='rule family="ipv4" source address="192.0.2.0/24" port protocol="tcp" port="8080" accept'
-sudo firewall-cmd --reload
+sudo nginx -t
+curl -skI https://hermes.example.ch/ | sed -n '1,8p'
+curl -skI -u chris:"${HERMES_DASHBOARD_PASSWORD}" https://hermes.example.ch/ | sed -n '1,8p'
 ```
 
-Prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth for production.
+Expected behaviour: the unauthenticated request returns `401 Unauthorized`; the authenticated request reaches the Hermes dashboard.
 
 If Playwright is enabled, the role installs the Rocky/RHEL runtime libraries via `dnf`, installs Chromium with `npx playwright install chromium`, checks direct shared-library dependencies with `ldd`, and then runs a real Chromium headless smoke test. Manual checks:
 
@@ -166,9 +240,11 @@ sudo -iu hermes hermes pairing approve telegram <CODE>
 
 ## Security Notes
 
-- The `hermes` user is deliberately not added to `wheel` or any sudo group.
-- The dashboard service is enabled by default and binds to `0.0.0.0:8080` with `--insecure` because that matches the lab/server reference setup. The firewall is intentionally not opened by this role. For production, prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth.
-- Secrets belong in `/home/hermes/.hermes/.env`, `/home/hermes/.hermes/auth.json`, or Hermes' auth store. Do not put tokens into Ansible vars or Git.
+- The Hermes Linux user is deliberately not added to `wheel` or any sudo group.
+- The dashboard service is loopback-only by default (`127.0.0.1:8080`) and does not need a direct firewall rule.
+- For browser access, prefer `hermes_nginx_enabled: true` with HTTPS and Basic Auth.
+- Use one DNS vhost per Hermes user. Subfolder deployments are not recommended for Hermes dashboard.
+- Secrets belong in `/home/<user>/.hermes/.env`, `/home/<user>/.hermes/auth.json`, Hermes' auth store, or Ansible Vault variables. Do not commit tokens or real Basic Auth passwords to Git.
 
 ## Manual Setup Documentation
 

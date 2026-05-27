@@ -30,13 +30,42 @@ hermes_gateway_service_state: started
 hermes_gateway_extra_args: ""
 
 # Dashboard systemd user service. Installed and enabled by default, but the firewall is not opened by this role.
+# For production, keep this bound to 127.0.0.1 and expose it through nginx with TLS + Basic Auth.
 hermes_dashboard_enabled: true
 hermes_dashboard_service_enabled: true
 hermes_dashboard_service_state: started
-hermes_dashboard_host: 0.0.0.0
+hermes_dashboard_host: 127.0.0.1
 hermes_dashboard_port: 8080
-hermes_dashboard_insecure: true
+hermes_dashboard_insecure: false
 hermes_dashboard_extra_args: ""
+
+# Optional nginx reverse proxy for the Hermes dashboard. The intended multi-user
+# pattern is one Linux user + one loopback dashboard port + one DNS vhost per
+# Hermes instance, for example chris-hermes.example.ch -> 127.0.0.1:8081.
+hermes_nginx_enabled: false
+hermes_nginx_fqdn: "{{ ansible_fqdn | default(inventory_hostname) }}"
+hermes_nginx_conf: /etc/nginx/conf.d/hermes.conf
+hermes_nginx_client_max_body_size: 100m
+hermes_nginx_enable_firewall: true
+
+hermes_nginx_tls_enabled: true
+hermes_nginx_tls_dir: /etc/pki/tls/hermes
+hermes_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/tls.crt"
+hermes_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/tls.key"
+hermes_nginx_generate_self_signed_cert: true
+
+hermes_nginx_basic_auth_enabled: true
+hermes_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes
+hermes_nginx_basic_auth_realm: Hermes
+hermes_nginx_basic_auth_user: hermes
+hermes_nginx_basic_auth_password: changeme
+hermes_nginx_basic_auth_users: []
+# Example:
+# hermes_nginx_basic_auth_users:
+#   - name: chris
+#     password: "{{ vault_hermes_chris_password }}"
+#   - name: admin
+#     password: "{{ vault_hermes_admin_password }}"
 
 # Configure default LLM provider/model for OpenAI Codex OAuth.
 # This writes only non-secret defaults. Authentication remains manual:
