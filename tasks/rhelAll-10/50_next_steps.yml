@@ -1,0 +1,20 @@
+---
+- name: Show Hermes post-install next steps
+  ansible.builtin.debug:
+    msg:
+      - "Hermes Agent installation finished. Full detailed setup reference:"
+      - "https://github.com/joe-speedboat/ansible.hermes_setup/blob/master/docs/manual-setup-rocky10.md"
+      - ""
+      - "Next steps:"
+      - "1. Finish Codex authentication:"
+      - "   sudo -iu {{ hermes_user }} hermes auth add openai-codex"
+      - ""
+      - "2. Restart Hermes user services:"
+      - "   sudo -iu {{ hermes_user }} systemctl --user restart hermes-gateway.service"
+      - "   sudo -iu {{ hermes_user }} systemctl --user restart hermes-dashboard.service"
+      - ""
+      - "3. Open firewall for admin dashboard against your admin IP only."
+      - "   *** NEVER EVER PRESENT TO INTERNET ***"
+      - "   sudo firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"192.0.2.10/32\" port protocol=\"tcp\" port=\"{{ hermes_dashboard_port }}\" accept'"
+      - "   sudo firewall-cmd --reload"
+...
