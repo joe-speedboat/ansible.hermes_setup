@@ -1,125 +1,108 @@
-# BITBULL ANSIBLE ROLE TEMPLATE
+# ansible.hermes_setup
 
-## WHY
-When Red Hat officially started supporting Ansible, I had a lot of fun immersing myself    
-in this really new concept of automation and keeping my knowledge up to date.   
+Install and operate [Hermes Agent](https://github.com/NousResearch/hermes-agent) on Rocky Linux 10 as a dedicated unprivileged user.
 
-A must for every efficient Linux consultant!   
+This role is intentionally conservative for sysadmin use:
 
-Just like GitHub repos, which at the beginning was the desired solution to a long worn problem,    
-with its excessive use it quickly became clear that management and maintenance are the    
-factors that determine the expense of these resources you have to spend in the future.   
+- creates a dedicated `hermes` Linux user without sudo rights
+- installs the packages needed for Hermes CLI and dashboard on Rocky Linux 10
+- installs Hermes via the official upstream installer as user `hermes` (`--skip-setup --skip-browser` for non-interactive Ansible runs)
+- optionally writes non-secret OpenAI Codex defaults into Hermes config
+- prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
+- installs and manages a `hermes-dashboard.service` systemd user service
+- optionally installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries
 
-I have always been of the opinion that what cannot be maintained in Operations has been developed incorrectly.     
-And I am constantly trying to do justice to this.    
+## Requirements
 
-For this purpose I have developed an Ansible role template, which is mandatory:    
-* Clear
-* Unambiguous
-* Dynamic   
+- Rocky Linux 10 target host
+- Ansible 2.9 or newer
+- root or passwordless sudo access for package installation, user creation, linger, and service setup
+- outbound HTTPS access from the target host for the Hermes installer and optional Playwright browser download
 
-which in turn reduces:    
-* Error
-* Familiarization
-* Maintenance
+## Installation
 
-This template concept, which I searched on the internet and did not find is foremost compatible with the current version of AWX.    
-(upstream project for Ansible Tower)
+Install from GitHub into the Galaxy-style role path:
 
-## HOW IT WORKS
-* Create a deduplicated list of task files
-* Reorder them by numbers
-* Run tasks by first match with the ansible_facts of the target machine (```include-file.yml```)
-  * ```{{  ansible_distribution_custom }}-{{ ansible_distribution_version }}```
-    * rhelAll-8.4
-  * ```{{ ansible_distribution_custom }}-{{ ansible_distribution_major_version }}```
-    * rhelAll-8
-  * ```{{ ansible_distribution_custom }}```
-    * rhelAll
-  * ```{{ ansible_distribution }}-{{ ansible_distribution_version }}```
-    * Rocky-8.4
-    * Ubuntu-24.04
-  * ```{{ ansible_distribution }}-{{ ansible_distribution_major_version }}```
-    * AlmaLinux-8
-    * Ubuntu-20
-  * ```{{ ansible_distribution }}```
-    * Rocky
-    * Ubuntu
-  * ```{{ ansible_os_family }}```
-    * RedHat
-    * Debian
-  * ```shared```
-    * This is the fallback, if noting above matches
-
-* Note, since RockyLinux and AlmaLinux are RHEL clones that work almost similar, we needed just one os folder for both
-  * If you need tasks that work for Alma and Rocky, create a folder named ```rhelAll``` in ```tasks``` folder
-    * It get catched like the var ```{{ ansible_distribution }}``` above
-
-You can look ito the role directory, it will be clear why and how to use it.   
-
-To get an overview, just look up the file names:
-```
-$ find tasks -type f -name '*.yml' #modified view
-
-tasks/shared/01_run_on_all_systems.yml
-
-tasks/Rocky-7/10_prep.yml
-tasks/shared/10_prep.yml
-
-tasks/Rocky-8/20_setup.yml
-tasks/shared/20_setup.yml
-
-tasks/Rocky-8/30_post.yml
-tasks/shared/30_post.yml
+```bash
+ansible-galaxy clone https://github.com/joe-speedboat/ansible.hermes_setup.git /etc/ansible/roles/joe-speedboat.hermes_setup
 ```
 
-## Drawback of this solution
-Including of task-files, depending on given ansible-facts, has to get created in blocks statements within the task files itself.
+Or use it from a project-local `roles/joe-speedboat.hermes_setup` directory.
 
-## One final word
-Many thanks to all supporters of OpenSource products,    
-only by sharing our solutions we could get this far!   
-If you use this construct for your productive work,    
-we would appreciate a donation to the [Stifung Buehl](https://www.stiftung-buehl.ch/ueber-uns/spenden).   
-All our know-how is OpenSource and your donation enables    
-children and young people with special needs to find a place in life.   
+## Role Variables
 
-Chris Ruettimann <chris@bitbull.ch>
+Important defaults from `defaults/main.yml`:
 
-# <ROLENAME>
+- `hermes_user`: Linux user to create. Default: `hermes`
+- `hermes_home`: home directory. Default: `/home/hermes`
+- `hermes_dashboard_enabled`: install dashboard user service. Default: `true`
+- `hermes_dashboard_host`: dashboard bind address. Default: `0.0.0.0`
+- `hermes_dashboard_port`: dashboard port. Default: `8080`
+- `hermes_dashboard_insecure`: pass `--insecure` to the dashboard. Default: `true`
+- `configure_codex`: configure non-secret Codex defaults. Default: `true`
+- `hermes_codex_provider`: default provider. Default: `openai-codex`
+- `hermes_codex_model`: default model. Default: `gpt-5.5`
+- `hermes_playwright_enabled`: install Playwright support. Default: `false`
+- `hermes_playwright_browsers`: browser list for `npx playwright install`. Default: `['chromium']`
 
-Installation with ansible-galaxy:
+## Example Playbook
 
-``` bash
-ansible-galaxy install joe-speedboat.template
+```yaml
+---
+- name: Install Hermes Agent on Rocky Linux 10
+  hosts: hermes_servers
+  become: true
+  roles:
+    - role: joe-speedboat.hermes_setup
+      vars:
+        configure_codex: true
+        hermes_playwright_enabled: true
+        hermes_dashboard_host: 0.0.0.0
+        hermes_dashboard_port: 8080
+...
 ```
 
-## Requirements xxx
+## After the Role Run
 
-* Currently tested with Rocky 9 
-* Ansible 2.9 or higher is required for this Ansible Role
+Codex authentication is intentionally manual because it uses OAuth/device-code auth and must not be stored in the role:
 
-* Operating System: Rocky 9
-* OS Disk: min 00 GB
-* Data Disk: min 00 GB
-* CPU: min 00   
-* Memory: min 00 GB   
+```bash
+sudo -iu hermes hermes auth add openai-codex
+```
 
+Alternative interactive setup:
 
+```bash
+sudo -iu hermes hermes model
+```
 
-Role Variables
---------------
+Check Hermes and the dashboard:
 
-Variables are speaking or documented in defaults/main.yml   
-One variable is mandatory: var1xxx
+```bash
+sudo -iu hermes hermes --version
+sudo -iu hermes hermes doctor
+sudo -iu hermes systemctl --user status hermes-dashboard.service --no-pager
+curl -I http://127.0.0.1:8080
+```
 
+If Playwright is enabled:
 
-## Dependencies
+```bash
+sudo -iu hermes bash -lc 'cd ~/.hermes/hermes-agent && npx playwright --version'
+```
 
-This Ansilbe Role has no dependencies to other Ansilbe Roles
+## Security Notes
 
-License
--------
-https://opensource.org/licenses/GPL-3.0    
+- The `hermes` user is deliberately not added to `wheel` or any sudo group.
+- The dashboard default binds to `0.0.0.0:8080` with `--insecure` because that matches the lab/server reference setup. For production, prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth.
+- Secrets belong in `/home/hermes/.hermes/.env`, `/home/hermes/.hermes/auth.json`, or Hermes' auth store. Do not put tokens into Ansible vars or Git.
+
+## Manual Setup Documentation
+
+For a copy/paste manual runbook that mirrors this role, see [`docs/manual-setup-rocky10.md`](docs/manual-setup-rocky10.md).
+
+## License
+
+GPLv3
+
 Copyright (c) Chris Ruettimann <chris@bitbull.ch>
-

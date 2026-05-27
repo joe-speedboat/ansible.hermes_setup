@@ -1,0 +1,74 @@
+---
+- name: Ensure Hermes systemd user directory exists
+  ansible.builtin.file:
+    path: "{{ hermes_systemd_user_dir }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0755'
+  when: hermes_dashboard_enabled | bool
+
+- name: Install Hermes dashboard systemd user unit
+  ansible.builtin.template:
+    src: hermes-dashboard.service.j2
+    dest: "{{ hermes_dashboard_unit_path }}"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0644'
+  register: hermes_dashboard_unit
+  when: hermes_dashboard_enabled | bool
+
+- name: Reload Hermes user systemd manager
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user daemon-reload
+  changed_when: hermes_dashboard_unit.changed
+  when: hermes_dashboard_enabled | bool
+
+- name: Enable or disable Hermes dashboard user service
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user {{ 'enable' if hermes_dashboard_service_enabled | bool else 'disable' }} hermes-dashboard.service
+  register: hermes_dashboard_enable_result
+  changed_when: "'Created symlink' in hermes_dashboard_enable_result.stdout or 'Removed' in hermes_dashboard_enable_result.stdout"
+  when: hermes_dashboard_enabled | bool
+
+- name: Map Ansible service state to systemctl verb
+  ansible.builtin.set_fact:
+    hermes_dashboard_systemctl_verb: >-
+      {{ {'started': 'start', 'stopped': 'stop', 'restarted': 'restart'}[hermes_dashboard_service_state] }}
+  when:
+    - hermes_dashboard_enabled | bool
+    - hermes_dashboard_service_state in ['started', 'stopped', 'restarted']
+
+- name: Manage Hermes dashboard user service state
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user {{ hermes_dashboard_systemctl_verb }} hermes-dashboard.service
+  changed_when: false
+  when:
+    - hermes_dashboard_enabled | bool
+    - hermes_dashboard_service_state in ['started', 'stopped', 'restarted']
+
+- name: Check Hermes dashboard user service status
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user is-active hermes-dashboard.service
+  register: hermes_dashboard_active_result
+  changed_when: false
+  failed_when: false
+  when: hermes_dashboard_enabled | bool
+
+- name: Show Hermes dashboard service status
+  ansible.builtin.debug:
+    msg: "hermes-dashboard.service is {{ hermes_dashboard_active_result.stdout | default('not checked') }}"
+  when: hermes_dashboard_enabled | bool
+...

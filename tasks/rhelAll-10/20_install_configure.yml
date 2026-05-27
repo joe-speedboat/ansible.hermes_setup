@@ -1,0 +1,69 @@
+---
+- name: Check whether Hermes CLI is already installed
+  ansible.builtin.stat:
+    path: "{{ hermes_bin_path }}"
+  register: hermes_cli_stat
+
+- name: Install Hermes Agent with official installer
+  ansible.builtin.shell: |
+    set -o pipefail
+    runuser -u {{ hermes_user }} -- bash -lc 'curl -fsSL {{ hermes_install_url | quote }} | bash -s -- --skip-setup --skip-browser'
+  args:
+    executable: /bin/bash
+    creates: "{{ hermes_bin_path }}"
+  when:
+    - hermes_install_if_missing | bool
+    - not hermes_cli_stat.stat.exists
+
+- name: Ensure Hermes config directory exists
+  ansible.builtin.file:
+    path: "{{ hermes_config_dir }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0700'
+
+- name: Configure Hermes Codex provider default
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    {{ hermes_bin_path }} config set model.provider {{ hermes_codex_provider }}
+  changed_when: false
+  when: configure_codex | bool
+
+- name: Configure Hermes Codex model default
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    {{ hermes_bin_path }} config set model.default {{ hermes_codex_model }}
+  changed_when: false
+  when: configure_codex | bool
+
+- name: Remove custom model base_url when Codex is selected
+  ansible.builtin.lineinfile:
+    path: "{{ hermes_config_dir }}/config.yaml"
+    regexp: '^  base_url:'
+    state: absent
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0600'
+  when: configure_codex | bool
+
+- name: Print manual Codex authentication instructions
+  ansible.builtin.debug:
+    msg:
+      - "Codex defaults were written for user {{ hermes_user }}."
+      - "Manual OAuth step is still required because the role does not handle secrets or device-code auth."
+      - "Run: sudo -iu {{ hermes_user }} hermes auth add {{ hermes_codex_provider }}"
+      - "Alternative interactive setup: sudo -iu {{ hermes_user }} hermes model"
+  when: configure_codex | bool
+
+- name: Check Hermes version
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    {{ hermes_bin_path }} --version
+  register: hermes_version_result
+  changed_when: false
+
+- name: Show installed Hermes version
+  ansible.builtin.debug:
+    var: hermes_version_result.stdout_lines
+...

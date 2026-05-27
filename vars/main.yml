@@ -1,7 +1,10 @@
 ---
-# Here belong all variables, that can be changed by a vars-file,
-# a playbook or a include.
-
-fixed_var1: this_fixed_var_is_defined_in_vars_folder
-
+hermes_supported_distribution: Rocky
+hermes_supported_major_version: '10'
+hermes_bin_path: "{{ hermes_home }}/.local/bin/hermes"
+hermes_project_path: "{{ hermes_home }}/.hermes/hermes-agent"
+hermes_config_dir: "{{ hermes_home }}/.hermes"
+hermes_systemd_user_dir: "{{ hermes_home }}/.config/systemd/user"
+hermes_dashboard_unit_path: "{{ hermes_systemd_user_dir }}/hermes-dashboard.service"
+hermes_user_systemd_runtime_dir: "/run/user/{{ hermes_user_uid | default('') }}"
 ...

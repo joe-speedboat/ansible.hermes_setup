@@ -1,0 +1,42 @@
+---
+- name: Check local Playwright package in Hermes project
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    npm list playwright --depth=0
+  args:
+    chdir: "{{ hermes_project_path }}"
+  register: hermes_playwright_npm_check
+  changed_when: false
+  failed_when: false
+  when: hermes_playwright_enabled | bool
+
+- name: Install local Playwright npm package in Hermes project
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    npm install --no-save playwright
+  args:
+    chdir: "{{ hermes_project_path }}"
+  when:
+    - hermes_playwright_enabled | bool
+    - hermes_playwright_npm_check.rc != 0
+
+- name: Install requested Playwright browsers
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    npx playwright install {{ item }}
+  args:
+    chdir: "{{ hermes_project_path }}"
+  loop: "{{ hermes_playwright_browsers }}"
+  register: hermes_playwright_browser_install
+  changed_when: >-
+    'downloaded to' in (hermes_playwright_browser_install.stdout | default('')) or
+    'Downloading' in (hermes_playwright_browser_install.stdout | default(''))
+  when: hermes_playwright_enabled | bool
+
+- name: Show Playwright validation command
+  ansible.builtin.debug:
+    msg:
+      - "Playwright support is installed for user {{ hermes_user }}."
+      - "Validate manually with: sudo -iu {{ hermes_user }} bash -lc 'cd {{ hermes_project_path }} && npx playwright --version'"
+  when: hermes_playwright_enabled | bool
+...

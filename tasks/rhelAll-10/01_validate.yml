@@ -1,0 +1,19 @@
+---
+- name: Validate supported operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == hermes_supported_distribution
+      - ansible_facts.distribution_major_version == hermes_supported_major_version
+    fail_msg: >-
+      joe-speedboat.hermes_setup currently supports Rocky Linux 10 only.
+      Detected {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}.
+    success_msg: "Target is supported: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+
+- name: Show role target summary
+  ansible.builtin.debug:
+    msg:
+      - "Hermes user: {{ hermes_user }}"
+      - "Hermes home: {{ hermes_home }}"
+      - "Configure Codex defaults: {{ configure_codex | bool }}"
+      - "Install Playwright support: {{ hermes_playwright_enabled | bool }}"
+...
