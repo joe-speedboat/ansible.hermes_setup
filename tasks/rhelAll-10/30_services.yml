@@ -6,7 +6,71 @@
     owner: "{{ hermes_user }}"
     group: "{{ hermes_group }}"
     mode: '0755'
-  when: hermes_dashboard_enabled | bool
+  when: (hermes_gateway_enabled | bool) or (hermes_dashboard_enabled | bool)
+
+- name: Install Hermes gateway systemd user unit
+  ansible.builtin.template:
+    src: hermes-gateway.service.j2
+    dest: "{{ hermes_gateway_unit_path }}"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0644'
+  register: hermes_gateway_unit
+  when: hermes_gateway_enabled | bool
+
+- name: Reload Hermes user systemd manager for gateway
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user daemon-reload
+  changed_when: hermes_gateway_unit.changed
+  when: hermes_gateway_enabled | bool
+
+- name: Enable or disable Hermes gateway user service
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user {{ 'enable' if hermes_gateway_service_enabled | bool else 'disable' }} hermes-gateway.service
+  register: hermes_gateway_enable_result
+  changed_when: "'Created symlink' in hermes_gateway_enable_result.stdout or 'Removed' in hermes_gateway_enable_result.stdout"
+  when: hermes_gateway_enabled | bool
+
+- name: Map Hermes gateway Ansible service state to systemctl verb
+  ansible.builtin.set_fact:
+    hermes_gateway_systemctl_verb: >-
+      {{ {'started': 'start', 'stopped': 'stop', 'restarted': 'restart'}[hermes_gateway_service_state] }}
+  when:
+    - hermes_gateway_enabled | bool
+    - hermes_gateway_service_state in ['started', 'stopped', 'restarted']
+
+- name: Manage Hermes gateway user service state
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user {{ hermes_gateway_systemctl_verb }} hermes-gateway.service
+  changed_when: false
+  when:
+    - hermes_gateway_enabled | bool
+    - hermes_gateway_service_state in ['started', 'stopped', 'restarted']
+
+- name: Check Hermes gateway user service status
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user is-active hermes-gateway.service
+  register: hermes_gateway_active_result
+  changed_when: false
+  failed_when: false
+  when: hermes_gateway_enabled | bool
+
+- name: Show Hermes gateway service status
+  ansible.builtin.debug:
+    msg: "hermes-gateway.service is {{ hermes_gateway_active_result.stdout | default('not checked') }}"
+  when: hermes_gateway_enabled | bool
 
 - name: Install Hermes dashboard systemd user unit
   ansible.builtin.template:
