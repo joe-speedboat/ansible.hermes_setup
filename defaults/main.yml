@@ -45,8 +45,9 @@ configure_codex: true
 hermes_codex_provider: openai-codex
 hermes_codex_model: gpt-5.5
 
-# Optional Playwright setup for Hermes browser/dashboard smoke tests.
-hermes_playwright_enabled: false
+# Playwright setup for Hermes browser/dashboard smoke tests. Enabled by default so
+# browser-capable Hermes installs work immediately on Rocky/RHEL 10 systems.
+hermes_playwright_enabled: true
 hermes_playwright_package_state: present
 hermes_playwright_browsers:
   - chromium

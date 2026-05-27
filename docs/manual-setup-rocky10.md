@@ -331,7 +331,23 @@ sudo -iu hermes hermes gateway stop
 sudo -iu hermes hermes gateway status
 ```
 
-## 9. Optional Playwright Setup
+## 9. Playwright Setup
+
+The Ansible role installs Playwright support by default:
+
+```yaml
+hermes_playwright_enabled: true
+hermes_playwright_browsers:
+  - chromium
+hermes_playwright_ldd_check_enabled: true
+hermes_playwright_smoke_test_enabled: true
+```
+
+Disable it only when the server must not download browser binaries or will never use Hermes browser automation:
+
+```yaml
+hermes_playwright_enabled: false
+```
 
 Install runtime libraries as admin/root:
 
