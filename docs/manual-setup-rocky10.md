@@ -347,14 +347,13 @@ server {
 }
 ```
 
-Enable nginx and open only HTTP/HTTPS:
+Enable nginx and open HTTPS:
 
 ```bash
 sudo setsebool -P httpd_can_network_connect 1
 sudo nginx -t
 sudo systemctl enable --now nginx
-sudo firewall-cmd --permanent --add-service=http
-sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --permanent --add-port=443/tcp
 sudo firewall-cmd --reload
 ```
 

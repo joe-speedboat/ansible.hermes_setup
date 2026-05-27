@@ -36,8 +36,8 @@
           - "'proxy_set_header Authorization \"\";' in rendered_nginx_text"
           - "'proxy_set_header Origin \"\";' in rendered_nginx_text"
           - "'proxy_set_header Upgrade $http_upgrade;' in rendered_nginx_text"
-          - "'proxy_set_header Connection \"upgrade\";' in rendered_nginx_text"
-          - "'map $http_upgrade' not in rendered_nginx_text"
+          - "'proxy_set_header Connection $connection_upgrade;' in rendered_nginx_text"
+          - "'map $http_upgrade $connection_upgrade' in rendered_nginx_text"
       vars:
         rendered_nginx_text: "{{ rendered_nginx.content | b64decode }}"
 ...

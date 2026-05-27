@@ -5,22 +5,24 @@
       - hermes_nginx_fqdn | length > 0
       - hermes_dashboard_host in ['127.0.0.1', 'localhost', '::1']
       - hermes_nginx_tls_enabled | bool
-      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_nginx_effective_basic_auth_users | length > 0)
-      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_nginx_basic_auth_users | length > 0) or (hermes_nginx_basic_auth_password != 'changeme')
+      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_nginx_basic_auth_user | length > 0)
+      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_nginx_basic_auth_password | length > 0)
     fail_msg: >-
       hermes_nginx_enabled requires a non-empty hermes_nginx_fqdn, a loopback-only
-      hermes_dashboard_host, TLS enabled, at least one Basic Auth user when Basic Auth is enabled,
-      and a non-default Basic Auth password for real deployments.
+      hermes_dashboard_host, TLS enabled, and a non-empty Basic Auth user/password when Basic Auth is enabled.
       Use one DNS vhost per Hermes Linux user and proxy to that user's loopback dashboard port.
-  vars:
-    hermes_nginx_effective_basic_auth_users: >-
-      {{
-        hermes_nginx_basic_auth_users
-        if (hermes_nginx_basic_auth_users | length > 0)
-        else [{'name': hermes_nginx_basic_auth_user, 'password': hermes_nginx_basic_auth_password}]
-      }}
   no_log: "{{ hermes_nginx_basic_auth_enabled | bool }}"
   when: hermes_nginx_enabled | bool
+
+- name: Warn when Hermes nginx Basic Auth uses the default password
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: hermes_nginx_basic_auth_password is still set to the default value 'changeme'.
+      Override it with Ansible Vault before exposing this endpoint outside a disposable lab.
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_basic_auth_enabled | bool
+    - hermes_nginx_basic_auth_password == 'changeme'
 
 - name: Install nginx for Hermes reverse proxy
   ansible.builtin.dnf:
@@ -88,19 +90,6 @@
     - hermes_nginx_enabled | bool
     - hermes_nginx_tls_enabled | bool
 
-- name: Build Hermes nginx Basic Auth user list
-  ansible.builtin.set_fact:
-    hermes_nginx_effective_basic_auth_users: >-
-      {{
-        hermes_nginx_basic_auth_users
-        if (hermes_nginx_basic_auth_users | length > 0)
-        else [{'name': hermes_nginx_basic_auth_user, 'password': hermes_nginx_basic_auth_password}]
-      }}
-  no_log: true
-  when:
-    - hermes_nginx_enabled | bool
-    - hermes_nginx_basic_auth_enabled | bool
-
 - name: Write Hermes nginx Basic Auth password file
   ansible.builtin.copy:
     dest: "{{ hermes_nginx_basic_auth_file }}"
@@ -108,9 +97,7 @@
     group: nginx
     mode: "0640"
     content: |
-      {% for user in hermes_nginx_effective_basic_auth_users -%}
-      {{ user.name }}:{{ user.password | password_hash('sha512', user.name) }}
-      {% endfor -%}
+      {{ hermes_nginx_basic_auth_user }}:{{ hermes_nginx_basic_auth_password | password_hash('sha512', hermes_nginx_basic_auth_user) }}
   no_log: true
   notify: restart nginx
   when:
@@ -125,6 +112,15 @@
   when:
     - hermes_nginx_enabled | bool
     - not (hermes_nginx_basic_auth_enabled | bool)
+
+- name: Remove legacy Hermes nginx reverse proxy config path
+  ansible.builtin.file:
+    path: /etc/nginx/conf.d/hermes.conf
+    state: absent
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_conf != '/etc/nginx/conf.d/hermes.conf'
 
 - name: Write Hermes nginx reverse proxy config
   ansible.builtin.template:
@@ -156,23 +152,44 @@
     state: started
   when: hermes_nginx_enabled | bool
 
-- name: Open http/https in firewalld for Hermes nginx
+- name: Remove legacy http/https firewalld services for Hermes nginx
   ansible.builtin.command:
     argv:
       - firewall-cmd
       - --permanent
-      - "--add-service={{ item }}"
+      - "--remove-service={{ item }}"
   loop:
     - http
     - https
+  register: hermes_nginx_legacy_firewalld_service_result
+  changed_when:
+    - "'success' in hermes_nginx_legacy_firewalld_service_result.stdout"
+    - "'NOT_ENABLED' not in hermes_nginx_legacy_firewalld_service_result.stderr"
+  failed_when:
+    - hermes_nginx_legacy_firewalld_service_result.rc != 0
+    - "'NOT_ENABLED' not in hermes_nginx_legacy_firewalld_service_result.stderr"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_enable_firewall | bool
+
+- name: Open configured ports in firewalld for Hermes nginx
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--add-port={{ item }}"
+  loop: "{{ firewalld_open_ports }}"
   register: hermes_nginx_firewalld_result
-  changed_when: "'success' in hermes_nginx_firewalld_result.stdout"
+  changed_when:
+    - "'success' in hermes_nginx_firewalld_result.stdout"
+    - "'ALREADY_ENABLED' not in hermes_nginx_firewalld_result.stderr"
   failed_when:
     - hermes_nginx_firewalld_result.rc != 0
     - "'ALREADY_ENABLED' not in hermes_nginx_firewalld_result.stderr"
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_enable_firewall | bool
+    - firewalld_open_ports | length > 0
 
 - name: Reload firewalld after Hermes nginx service changes
   ansible.builtin.command:
@@ -182,4 +199,5 @@
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_enable_firewall | bool
+    - firewalld_open_ports | length > 0
 ...

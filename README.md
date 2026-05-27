@@ -48,17 +48,17 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_host`: dashboard bind address. Default: `127.0.0.1`
 - `hermes_dashboard_port`: dashboard port. Default: `8080`
 - `hermes_dashboard_insecure`: pass `--insecure` to the dashboard. Default: `false`
-- `hermes_nginx_enabled`: install nginx HTTPS reverse proxy for the dashboard. Default: `false`
+- `hermes_nginx_enabled`: install nginx HTTPS reverse proxy for the dashboard. Default: `true`
 - `hermes_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: target FQDN/inventory name
-- `hermes_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/hermes.conf`
-- `hermes_nginx_enable_firewall`: open `http` and `https` in firewalld. Default: `true`
+- `hermes_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_nginx_fqdn }}.conf`
+- `hermes_nginx_enable_firewall`: manage firewalld ports. Default: `true`
+- `firewalld_open_ports`: list of ports to open in firewalld when nginx firewall management is enabled. Default: `['443/tcp']`
 - `hermes_nginx_tls_dir`: directory for role-managed self-signed TLS material. Default: `/etc/pki/tls/hermes`
 - `hermes_nginx_generate_self_signed_cert`: generate a self-signed cert when no external cert is provided. Default: `true`
 - `hermes_nginx_basic_auth_enabled`: enable nginx Basic Auth. Default: `true`
 - `hermes_nginx_basic_auth_file`: htpasswd file path. Default: `/etc/nginx/.htpasswd-hermes`
-- `hermes_nginx_basic_auth_user`: single Basic Auth username fallback. Default: `hermes`
-- `hermes_nginx_basic_auth_password`: single Basic Auth password fallback. Default: `changeme`
-- `hermes_nginx_basic_auth_users`: optional list of Basic Auth users. Default: `[]`
+- `hermes_nginx_basic_auth_user`: Basic Auth username. Default: `hermes`
+- `hermes_nginx_basic_auth_password`: Basic Auth password. Default: `changeme`
 - `configure_codex`: configure non-secret Codex defaults. Default: `true`
 - `hermes_codex_provider`: default provider. Default: `openai-codex`
 - `hermes_codex_model`: default model. Default: `gpt-5.5`
@@ -67,7 +67,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_playwright_ldd_check_enabled`: run `ldd` against Playwright's Chromium headless shell and fail if direct shared libraries are missing. Default: `true`
 - `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
 
-> Override `hermes_nginx_basic_auth_password` or use `hermes_nginx_basic_auth_users` with Ansible Vault for every deployment that enables nginx. The default `hermes` / `changeme` pair is intentionally rejected when `hermes_nginx_enabled: true`.
+> Override `hermes_nginx_basic_auth_password` with Ansible Vault for every deployment that exposes nginx beyond a disposable lab. The default `hermes` / `changeme` pair is only there so the role converges from defaults.
 
 ## Example Playbook: single Hermes dashboard behind nginx
 
@@ -132,7 +132,6 @@ Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes 
 
         hermes_nginx_enabled: true
         hermes_nginx_fqdn: "{{ hermes_instance.fqdn }}"
-        hermes_nginx_conf: "/etc/nginx/conf.d/hermes-{{ hermes_instance.user }}.conf"
         hermes_nginx_tls_dir: "/etc/pki/tls/hermes-{{ hermes_instance.user }}"
         hermes_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/tls.crt"
         hermes_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/tls.key"

@@ -7,9 +7,10 @@
     hermes_nginx_fqdn: hermes.example.ch
     hermes_nginx_tls_enabled: true
     hermes_nginx_basic_auth_enabled: true
-    hermes_nginx_basic_auth_users: []
     hermes_nginx_basic_auth_user: hermes
     hermes_nginx_basic_auth_password: not-the-default
+    firewalld_open_ports:
+      - 443/tcp
     hermes_dashboard_host: 127.0.0.1
   tasks:
     - name: Import nginx tasks for syntax validation
