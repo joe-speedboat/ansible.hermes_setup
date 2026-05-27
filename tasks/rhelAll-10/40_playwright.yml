@@ -33,10 +33,41 @@
     'Downloading' in (hermes_playwright_browser_install.stdout | default(''))
   when: hermes_playwright_enabled | bool
 
-- name: Show Playwright validation command
+- name: Check Playwright Chromium direct shared-library dependencies
+  ansible.builtin.shell: |
+    set -o pipefail
+    binary=$(find {{ hermes_home | quote }}/.cache/ms-playwright -path '*/chrome-headless-shell-linux64/chrome-headless-shell' -type f | sort | tail -n 1)
+    if [ -z "$binary" ]; then
+      echo "chrome-headless-shell not found below {{ hermes_home }}/.cache/ms-playwright" >&2
+      exit 1
+    fi
+    ldd "$binary" | grep 'not found' || true
+  args:
+    executable: /bin/bash
+  register: hermes_playwright_ldd_check
+  changed_when: false
+  failed_when: (hermes_playwright_ldd_check.stdout | trim | length) > 0
+  when:
+    - hermes_playwright_enabled | bool
+    - hermes_playwright_ldd_check_enabled | bool
+
+- name: Run Playwright Chromium smoke test
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
+    node -e '(async()=>{const {chromium}=require("playwright"); const browser=await chromium.launch({headless:true}); const page=await browser.newPage(); await page.goto("data:text/html,<h1>playwright-ok</h1>"); const text=await page.textContent("h1"); if (text !== "playwright-ok") { throw new Error("Unexpected page text: " + text); } console.log(text); await browser.close();})().catch(error=>{console.error(error.stack||error); process.exit(1);})'
+  args:
+    chdir: "{{ hermes_project_path }}"
+  register: hermes_playwright_smoke_test
+  changed_when: false
+  when:
+    - hermes_playwright_enabled | bool
+    - hermes_playwright_smoke_test_enabled | bool
+
+- name: Show Playwright validation result
   ansible.builtin.debug:
     msg:
       - "Playwright support is installed for user {{ hermes_user }}."
-      - "Validate manually with: sudo -iu {{ hermes_user }} bash -lc 'cd {{ hermes_project_path }} && npx playwright --version'"
+      - "Chromium direct dependency check: {{ 'ok' if (hermes_playwright_ldd_check.stdout | default('') | trim | length) == 0 else hermes_playwright_ldd_check.stdout }}"
+      - "Chromium smoke test: {{ hermes_playwright_smoke_test.stdout | default('skipped') }}"
   when: hermes_playwright_enabled | bool
 ...

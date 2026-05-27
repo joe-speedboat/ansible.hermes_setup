@@ -46,6 +46,8 @@ Important defaults from `defaults/main.yml`:
 - `hermes_codex_model`: default model. Default: `gpt-5.5`
 - `hermes_playwright_enabled`: install Playwright support. Default: `false`
 - `hermes_playwright_browsers`: browser list for `npx playwright install`. Default: `['chromium']`
+- `hermes_playwright_ldd_check_enabled`: run `ldd` against Playwright's Chromium headless shell and fail if direct shared libraries are missing. Default: `true`
+- `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
 
 ## Example Playbook
 
@@ -90,14 +92,17 @@ If `hermes_dashboard_enabled: true`, check the dashboard:
 
 ```bash
 sudo -iu hermes systemctl --user status hermes-dashboard.service --no-pager
-curl -I http://127.0.0.1:8080
+curl -fsS http://127.0.0.1:8080 >/dev/null
 ```
 
-If Playwright is enabled:
+If Playwright is enabled, the role installs the Rocky/RHEL runtime libraries via `dnf`, installs Chromium with `npx playwright install chromium`, checks direct shared-library dependencies with `ldd`, and then runs a real Chromium headless smoke test. Manual checks:
 
 ```bash
-sudo -iu hermes bash -lc 'cd ~/.hermes/hermes-agent && npx playwright --version'
+sudo -iu hermes bash -lc 'ldd ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell | grep "not found"'
+sudo -iu hermes bash -lc 'cd ~/.hermes/hermes-agent && node -e '\''(async()=>{const {chromium}=require("playwright"); const browser=await chromium.launch({headless:true}); const page=await browser.newPage(); await page.goto("data:text/html,<h1>playwright-ok</h1>"); console.log(await page.textContent("h1")); await browser.close();})().catch(error=>{console.error(error.stack||error); process.exit(1);})'\'''
 ```
+
+The direct `dnf` package list is intentional. Playwright's own `npx playwright install-deps chromium` is primarily Debian/Ubuntu-oriented and may print `BEWARE: your OS is not officially supported by Playwright; installing dependencies for ubuntu24.04-x64 as a fallback` on Rocky Linux.
 
 ## Messaging Gateway / Telegram Pairing
 
