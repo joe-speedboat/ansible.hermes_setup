@@ -1,0 +1,56 @@
+---
+- name: Install Hermes base packages
+  ansible.builtin.dnf:
+    name: "{{ hermes_base_packages }}"
+    state: present
+
+- name: Install Playwright runtime packages when enabled
+  ansible.builtin.dnf:
+    name: "{{ hermes_playwright_runtime_packages }}"
+    state: "{{ hermes_playwright_package_state }}"
+  when: hermes_playwright_enabled | bool
+
+- name: Create dedicated Hermes group
+  ansible.builtin.group:
+    name: "{{ hermes_group }}"
+    state: present
+
+- name: Create dedicated Hermes user without sudo rights
+  ansible.builtin.user:
+    name: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    groups: ""
+    append: false
+    shell: "{{ hermes_shell }}"
+    home: "{{ hermes_home }}"
+    create_home: true
+    state: present
+
+- name: Remove Hermes user from wheel group if present
+  ansible.builtin.command: "gpasswd -d {{ hermes_user }} wheel"
+  register: hermes_remove_wheel_result
+  changed_when: hermes_remove_wheel_result.rc == 0
+  failed_when: hermes_remove_wheel_result.rc not in [0, 3]
+  when: hermes_remove_from_wheel | bool
+
+- name: Read Hermes user uid
+  ansible.builtin.command: "id -u {{ hermes_user }}"
+  register: hermes_user_uid_command
+  changed_when: false
+
+- name: Store Hermes user uid fact
+  ansible.builtin.set_fact:
+    hermes_user_uid: "{{ hermes_user_uid_command.stdout }}"
+
+- name: Enable linger for Hermes user
+  ansible.builtin.command: "loginctl enable-linger {{ hermes_user }}"
+  args:
+    creates: "/var/lib/systemd/linger/{{ hermes_user }}"
+  when: hermes_enable_linger | bool
+
+- name: Ensure user manager is running for Hermes user
+  ansible.builtin.systemd:
+    name: "user@{{ hermes_user_uid }}.service"
+    state: started
+  when: hermes_enable_linger | bool
+...

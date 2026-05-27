@@ -1,9 +1,7 @@
-#!/usr/bin/ansible-playbook 
 ---
-- name: joe-speedboat.template Setup
-  hosts: localhost
-  vars:
-    mandatory_var: mandatory-value
+- name: Test joe-speedboat.hermes_setup
+  hosts: all
+  become: true
   roles:
-    - joe-speedboat.template
+    - role: joe-speedboat.hermes_setup
 ...

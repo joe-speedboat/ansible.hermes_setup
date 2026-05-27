@@ -1,8 +1,67 @@
-# defaults/main.yml
 ---
-# Here belong all variables, that can be changed by a vars-file,
-# a playbook or a include.
+# User and installation
+hermes_user: hermes
+hermes_group: "{{ hermes_user }}"
+hermes_home: "/home/{{ hermes_user }}"
+hermes_shell: /bin/bash
+hermes_install_url: https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh
+hermes_install_if_missing: true
 
-mandatory_default_var1xxx: playbook-will-fail-without-this-var
-default_var2_xxx: this_is_defined_in_defaults_folder
+# Base packages required for Hermes CLI, dashboard build, systemd user services, and admin troubleshooting.
+hermes_base_packages:
+  - bash
+  - ca-certificates
+  - curl
+  - git
+  - jq
+  - openssl
+  - python3
+  - python3-pip
+  - tar
+  - unzip
+  - which
+  - nodejs
+  - npm
+
+# Dashboard systemd user service
+hermes_dashboard_enabled: true
+hermes_dashboard_service_enabled: true
+hermes_dashboard_service_state: started
+hermes_dashboard_host: 0.0.0.0
+hermes_dashboard_port: 8080
+hermes_dashboard_insecure: true
+hermes_dashboard_extra_args: ""
+
+# Configure default LLM provider/model for OpenAI Codex OAuth.
+# This writes only non-secret defaults. Authentication remains manual:
+#   sudo -iu hermes hermes auth add openai-codex
+configure_codex: true
+hermes_codex_provider: openai-codex
+hermes_codex_model: gpt-5.5
+
+# Optional Playwright setup for Hermes browser/dashboard smoke tests.
+hermes_playwright_enabled: false
+hermes_playwright_package_state: present
+hermes_playwright_browsers:
+  - chromium
+hermes_playwright_runtime_packages:
+  - atk
+  - at-spi2-atk
+  - alsa-lib
+  - cairo
+  - cups-libs
+  - gtk3
+  - libdrm
+  - libXcomposite
+  - libXdamage
+  - libXfixes
+  - libXrandr
+  - libxkbcommon
+  - mesa-libgbm
+  - nss
+  - pango
+
+# Safety defaults
+hermes_remove_from_wheel: true
+hermes_enable_linger: true
 ...
