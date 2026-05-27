@@ -47,15 +47,20 @@ hermes_playwright_browsers:
 hermes_playwright_ldd_check_enabled: true
 hermes_playwright_smoke_test_enabled: true
 hermes_playwright_runtime_packages:
+  - liberation-fonts
+  - dejavu-sans-fonts
+  - pulseaudio-libs
+  - libxshmfence
   - nspr
   - nss
+  - nss-util
   - alsa-lib
   - atk
   - at-spi2-atk
   - at-spi2-core
+  - cups-libs
   - mesa-libgbm
   - libdrm
-  - libxshmfence
   - libX11
   - libxcb
   - libXcomposite
