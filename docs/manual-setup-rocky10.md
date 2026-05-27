@@ -101,7 +101,13 @@ Alternative:
 sudo -iu hermes hermes model
 ```
 
-## 6. Install Dashboard systemd User Service
+## 6. Optional Dashboard systemd User Service
+
+The Ansible role only installs this service when:
+
+```yaml
+hermes_dashboard_enabled: true
+```
 
 Create the user service directory:
 
@@ -168,7 +174,38 @@ sudo runuser -u hermes -- env \
 curl -I http://127.0.0.1:8080
 ```
 
-## 7. Optional Playwright Setup
+## 7. Pair Messaging Platforms such as Telegram
+
+Run the Hermes gateway setup wizard as the `hermes` user:
+
+```bash
+sudo -iu hermes hermes gateway setup
+```
+
+For Telegram, select Telegram in the wizard and enter the bot token from BotFather. After setup, install and start the gateway service:
+
+```bash
+sudo -iu hermes hermes gateway install
+sudo -iu hermes hermes gateway start
+sudo -iu hermes hermes gateway status
+```
+
+When a user sends a message to the bot, Hermes creates a pending pairing code. List and approve it:
+
+```bash
+sudo -iu hermes hermes pairing list
+sudo -iu hermes hermes pairing approve telegram <CODE>
+```
+
+Useful gateway maintenance commands:
+
+```bash
+sudo -iu hermes hermes gateway restart
+sudo -iu hermes hermes gateway stop
+sudo -iu hermes hermes gateway status
+```
+
+## 8. Optional Playwright Setup
 
 Install runtime libraries as admin/root:
 
@@ -210,7 +247,7 @@ Expected output:
 playwright-ok
 ```
 
-## 8. Production Hardening Hints
+## 9. Production Hardening Hints
 
 For production, do not expose the dashboard directly unless the surrounding network is trusted. Prefer one of these patterns:
 

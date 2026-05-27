@@ -7,7 +7,7 @@ hermes_shell: /bin/bash
 hermes_install_url: https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh
 hermes_install_if_missing: true
 
-# Base packages required for Hermes CLI, dashboard build, systemd user services, and admin troubleshooting.
+# Base packages required for Hermes CLI, optional dashboard, systemd user services, and admin troubleshooting.
 hermes_base_packages:
   - bash
   - ca-certificates
@@ -23,8 +23,8 @@ hermes_base_packages:
   - nodejs
   - npm
 
-# Dashboard systemd user service
-hermes_dashboard_enabled: true
+# Dashboard systemd user service. Disabled by default; set hermes_dashboard_enabled: true to install it.
+hermes_dashboard_enabled: false
 hermes_dashboard_service_enabled: true
 hermes_dashboard_service_state: started
 hermes_dashboard_host: 0.0.0.0

@@ -5,11 +5,12 @@ Install and operate [Hermes Agent](https://github.com/NousResearch/hermes-agent)
 This role is intentionally conservative for sysadmin use:
 
 - creates a dedicated `hermes` Linux user without sudo rights
-- installs the packages needed for Hermes CLI and dashboard on Rocky Linux 10
+- installs the packages needed for Hermes CLI on Rocky Linux 10
 - installs Hermes via the official upstream installer as user `hermes` (`--skip-setup --skip-browser` for non-interactive Ansible runs)
 - optionally writes non-secret OpenAI Codex defaults into Hermes config
 - prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
-- installs and manages a `hermes-dashboard.service` systemd user service
+- optionally installs and manages a `hermes-dashboard.service` systemd user service
+- prints ready-to-use post-install commands for Codex auth, messaging gateway setup, and Telegram pairing
 - optionally installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries
 
 ## Requirements
@@ -35,7 +36,9 @@ Important defaults from `defaults/main.yml`:
 
 - `hermes_user`: Linux user to create. Default: `hermes`
 - `hermes_home`: home directory. Default: `/home/hermes`
-- `hermes_dashboard_enabled`: install dashboard user service. Default: `true`
+- `hermes_dashboard_enabled`: install dashboard user service. Default: `false`
+- `hermes_dashboard_service_enabled`: enable dashboard service at boot when dashboard is installed. Default: `true`
+- `hermes_dashboard_service_state`: dashboard runtime state when dashboard is installed. Default: `started`
 - `hermes_dashboard_host`: dashboard bind address. Default: `0.0.0.0`
 - `hermes_dashboard_port`: dashboard port. Default: `8080`
 - `hermes_dashboard_insecure`: pass `--insecure` to the dashboard. Default: `true`
@@ -56,6 +59,7 @@ Important defaults from `defaults/main.yml`:
     - role: joe-speedboat.hermes_setup
       vars:
         configure_codex: true
+        hermes_dashboard_enabled: true
         hermes_playwright_enabled: true
         hermes_dashboard_host: 0.0.0.0
         hermes_dashboard_port: 8080
@@ -76,11 +80,16 @@ Alternative interactive setup:
 sudo -iu hermes hermes model
 ```
 
-Check Hermes and the dashboard:
+Check Hermes:
 
 ```bash
 sudo -iu hermes hermes --version
 sudo -iu hermes hermes doctor
+```
+
+If `hermes_dashboard_enabled: true`, check the dashboard:
+
+```bash
 sudo -iu hermes systemctl --user status hermes-dashboard.service --no-pager
 curl -I http://127.0.0.1:8080
 ```
@@ -91,10 +100,33 @@ If Playwright is enabled:
 sudo -iu hermes bash -lc 'cd ~/.hermes/hermes-agent && npx playwright --version'
 ```
 
+## Messaging Gateway / Telegram Pairing
+
+After the role finishes, it prints the same commands below. To configure Telegram or another messenger, run the interactive gateway wizard as the `hermes` user:
+
+```bash
+sudo -iu hermes hermes gateway setup
+```
+
+For Telegram, choose Telegram in the wizard and provide the bot token from BotFather. Then install/start the gateway service:
+
+```bash
+sudo -iu hermes hermes gateway install
+sudo -iu hermes hermes gateway start
+sudo -iu hermes hermes gateway status
+```
+
+When a user messages the bot, approve the pairing code:
+
+```bash
+sudo -iu hermes hermes pairing list
+sudo -iu hermes hermes pairing approve telegram <CODE>
+```
+
 ## Security Notes
 
 - The `hermes` user is deliberately not added to `wheel` or any sudo group.
-- The dashboard default binds to `0.0.0.0:8080` with `--insecure` because that matches the lab/server reference setup. For production, prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth.
+- The dashboard is disabled by default. Enable it with `hermes_dashboard_enabled: true`. If enabled, the default binds to `0.0.0.0:8080` with `--insecure` because that matches the lab/server reference setup. For production, prefer `127.0.0.1` plus SSH tunnel or a reverse proxy with TLS/auth.
 - Secrets belong in `/home/hermes/.hermes/.env`, `/home/hermes/.hermes/auth.json`, or Hermes' auth store. Do not put tokens into Ansible vars or Git.
 
 ## Manual Setup Documentation
