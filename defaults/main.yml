@@ -45,21 +45,21 @@ hermes_playwright_package_state: present
 hermes_playwright_browsers:
   - chromium
 hermes_playwright_runtime_packages:
+  - nspr
+  - nss
+  - alsa-lib
   - atk
   - at-spi2-atk
-  - alsa-lib
-  - cairo
-  - cups-libs
-  - gtk3
-  - libdrm
+  - at-spi2-core
+  - mesa-libgbm
+  - libX11
+  - libxcb
   - libXcomposite
   - libXdamage
+  - libXext
   - libXfixes
-  - libXrandr
   - libxkbcommon
-  - mesa-libgbm
-  - nss
-  - pango
+  - libXrandr
 
 # Safety defaults
 hermes_remove_from_wheel: true
