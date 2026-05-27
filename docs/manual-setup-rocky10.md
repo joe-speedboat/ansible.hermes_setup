@@ -59,6 +59,18 @@ sudo loginctl enable-linger hermes
 sudo systemctl start user@$(id -u hermes).service
 ```
 
+Ensure shell sessions for the lingered user know how to reach the systemd user bus:
+
+```bash
+sudo tee -a /home/hermes/.bashrc >/dev/null <<'EOF'
+
+# systemd --user / D-Bus session for lingered user services
+export XDG_RUNTIME_DIR="/run/user/$UID"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+EOF
+sudo chown hermes:hermes /home/hermes/.bashrc
+```
+
 ## 4. Install Hermes Agent
 
 Switch to the dedicated user:
@@ -101,7 +113,80 @@ Alternative:
 sudo -iu hermes hermes model
 ```
 
-## 6. Optional Dashboard systemd User Service
+## 6. Optional Gateway systemd User Service
+
+The Ansible role only installs this service when:
+
+```yaml
+hermes_gateway_enabled: true
+```
+
+Run `hermes gateway setup` first if you want a configured platform such as Telegram, Discord, Slack, or Matrix.
+
+Create the user service directory:
+
+```bash
+sudo -iu hermes mkdir -p ~/.config/systemd/user
+```
+
+Create `/home/hermes/.config/systemd/user/hermes-gateway.service`:
+
+```ini
+[Unit]
+Description=Hermes Agent Gateway
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/home/hermes/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run --replace
+WorkingDirectory=/home/hermes/.hermes/hermes-agent
+Environment="PATH=/home/hermes/.hermes/hermes-agent/venv/bin:/home/hermes/.hermes/hermes-agent/node_modules/.bin:/home/hermes/.hermes/node/bin:/home/hermes/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="VIRTUAL_ENV=/home/hermes/.hermes/hermes-agent/venv"
+Environment="HERMES_HOME=/home/hermes/.hermes"
+Restart=always
+RestartSec=5
+RestartMaxDelaySec=300
+RestartSteps=5
+RestartForceExitStatus=75
+KillMode=mixed
+KillSignal=SIGTERM
+ExecReload=/bin/kill -USR1 $MAINPID
+TimeoutStopSec=210
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hermes-gateway
+
+[Install]
+WantedBy=default.target
+```
+
+Reload and start:
+
+```bash
+uid=$(id -u hermes)
+sudo runuser -u hermes -- env \
+  XDG_RUNTIME_DIR=/run/user/$uid \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus \
+  systemctl --user daemon-reload
+
+sudo runuser -u hermes -- env \
+  XDG_RUNTIME_DIR=/run/user/$uid \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus \
+  systemctl --user enable --now hermes-gateway.service
+```
+
+Verify:
+
+```bash
+sudo runuser -u hermes -- env \
+  XDG_RUNTIME_DIR=/run/user/$(id -u hermes) \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u hermes)/bus \
+  systemctl --user status hermes-gateway.service --no-pager
+```
+
+## 7. Optional Dashboard systemd User Service
 
 The Ansible role only installs this service when:
 
@@ -171,10 +256,10 @@ sudo runuser -u hermes -- env \
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u hermes)/bus \
   systemctl --user status hermes-dashboard.service --no-pager
 
-curl -I http://127.0.0.1:8080
+curl -fsS http://127.0.0.1:8080 >/dev/null
 ```
 
-## 7. Pair Messaging Platforms such as Telegram
+## 8. Pair Messaging Platforms such as Telegram
 
 Run the Hermes gateway setup wizard as the `hermes` user:
 
@@ -182,7 +267,14 @@ Run the Hermes gateway setup wizard as the `hermes` user:
 sudo -iu hermes hermes gateway setup
 ```
 
-For Telegram, select Telegram in the wizard and enter the bot token from BotFather. After setup, install and start the gateway service:
+For Telegram, select Telegram in the wizard and enter the bot token from BotFather. If the service was installed by the role or by section 6, restart it:
+
+```bash
+sudo -iu hermes systemctl --user restart hermes-gateway.service
+sudo -iu hermes systemctl --user status hermes-gateway.service --no-pager
+```
+
+If you did not install the role-managed service, use Hermes' built-in installer instead:
 
 ```bash
 sudo -iu hermes hermes gateway install
@@ -205,7 +297,7 @@ sudo -iu hermes hermes gateway stop
 sudo -iu hermes hermes gateway status
 ```
 
-## 8. Optional Playwright Setup
+## 9. Optional Playwright Setup
 
 Install runtime libraries as admin/root:
 
@@ -249,7 +341,7 @@ Expected output:
 playwright-ok
 ```
 
-## 9. Production Hardening Hints
+## 10. Production Hardening Hints
 
 For production, do not expose the dashboard directly unless the surrounding network is trusted. Prefer one of these patterns:
 

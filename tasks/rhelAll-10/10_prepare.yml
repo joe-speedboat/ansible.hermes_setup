@@ -53,4 +53,17 @@
     name: "user@{{ hermes_user_uid }}.service"
     state: started
   when: hermes_enable_linger | bool
+
+- name: Ensure systemd user bus variables are present for Hermes shell sessions
+  ansible.builtin.blockinfile:
+    path: "{{ hermes_home }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Hermes systemd user bus"
+    block: |
+      export XDG_RUNTIME_DIR="/run/user/$UID"
+      export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0644'
+    create: true
+  when: hermes_enable_linger | bool
 ...
