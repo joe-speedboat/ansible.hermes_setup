@@ -211,21 +211,13 @@ Install runtime libraries as admin/root:
 
 ```bash
 sudo dnf install -y \
-  atk \
-  at-spi2-atk \
+  nspr nss \
+  atk at-spi2-atk at-spi2-core \
+  libX11 libXcomposite libXdamage libXext libXfixes libXrandr \
+  libxcb libxkbcommon \
+  mesa-libgbm libdrm libxshmfence \
   alsa-lib \
-  cairo \
-  cups-libs \
-  gtk3 \
-  libdrm \
-  libXcomposite \
-  libXdamage \
-  libXfixes \
-  libXrandr \
-  libxkbcommon \
-  mesa-libgbm \
-  nss \
-  pango
+  pango cairo gdk-pixbuf2 gtk3
 ```
 
 Install Playwright package and Chromium browser as user `hermes`:
@@ -234,6 +226,14 @@ Install Playwright package and Chromium browser as user `hermes`:
 sudo -iu hermes bash -lc 'cd ~/.hermes/hermes-agent && npm install --no-save playwright'
 sudo -iu hermes bash -lc 'cd ~/.hermes/hermes-agent && npx playwright install chromium'
 ```
+
+Check direct Chromium shared-library dependencies. If this prints nothing, the direct `ldd` dependencies are satisfied:
+
+```bash
+sudo -iu hermes bash -lc 'ldd ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell | grep "not found"'
+```
+
+Playwright also has `sudo npx playwright install-deps chromium`, but on Rocky Linux it is not the preferred path. Playwright may warn that the OS is not officially supported and fall back to Ubuntu dependency assumptions.
 
 Smoke test:
 

@@ -33,6 +33,24 @@
     'Downloading' in (hermes_playwright_browser_install.stdout | default(''))
   when: hermes_playwright_enabled | bool
 
+- name: Check Playwright Chromium direct shared-library dependencies
+  ansible.builtin.shell: |
+    set -o pipefail
+    binary=$(find {{ hermes_home | quote }}/.cache/ms-playwright -path '*/chrome-headless-shell-linux64/chrome-headless-shell' -type f | sort | tail -n 1)
+    if [ -z "$binary" ]; then
+      echo "chrome-headless-shell not found below {{ hermes_home }}/.cache/ms-playwright" >&2
+      exit 1
+    fi
+    ldd "$binary" | grep 'not found' || true
+  args:
+    executable: /bin/bash
+  register: hermes_playwright_ldd_check
+  changed_when: false
+  failed_when: (hermes_playwright_ldd_check.stdout | trim | length) > 0
+  when:
+    - hermes_playwright_enabled | bool
+    - hermes_playwright_ldd_check_enabled | bool
+
 - name: Run Playwright Chromium smoke test
   ansible.builtin.command: >-
     runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
@@ -49,6 +67,7 @@
   ansible.builtin.debug:
     msg:
       - "Playwright support is installed for user {{ hermes_user }}."
+      - "Chromium direct dependency check: {{ 'ok' if (hermes_playwright_ldd_check.stdout | default('') | trim | length) == 0 else hermes_playwright_ldd_check.stdout }}"
       - "Chromium smoke test: {{ hermes_playwright_smoke_test.stdout | default('skipped') }}"
   when: hermes_playwright_enabled | bool
 ...
