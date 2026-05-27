@@ -11,14 +11,14 @@ This role is intentionally conservative for sysadmin use:
 - prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
 - installs, enables, and starts a `hermes-gateway.service` systemd user service by default
 - installs, enables, and starts a `hermes-dashboard.service` systemd user service by default
-- optionally installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries
+- installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries by default
 
 ## Requirements
 
 - Rocky Linux 10 target host
 - Ansible 2.9 or newer
 - root or passwordless sudo access for package installation, user creation, linger, and service setup
-- outbound HTTPS access from the target host for the Hermes installer and optional Playwright browser download
+- outbound HTTPS access from the target host for the Hermes installer and the default Playwright browser download
 
 ## Installation
 
@@ -49,7 +49,7 @@ Important defaults from `defaults/main.yml`:
 - `configure_codex`: configure non-secret Codex defaults. Default: `true`
 - `hermes_codex_provider`: default provider. Default: `openai-codex`
 - `hermes_codex_model`: default model. Default: `gpt-5.5`
-- `hermes_playwright_enabled`: install Playwright support. Default: `false`
+- `hermes_playwright_enabled`: install Playwright support. Default: `true`
 - `hermes_playwright_browsers`: browser list for `npx playwright install`. Default: `['chromium']`
 - `hermes_playwright_ldd_check_enabled`: run `ldd` against Playwright's Chromium headless shell and fail if direct shared libraries are missing. Default: `true`
 - `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
@@ -67,7 +67,6 @@ Important defaults from `defaults/main.yml`:
         configure_codex: true
         hermes_gateway_enabled: true
         hermes_dashboard_enabled: true
-        hermes_playwright_enabled: true
         hermes_dashboard_host: 0.0.0.0
         hermes_dashboard_port: 8080
 ...
