@@ -23,14 +23,14 @@ hermes_base_packages:
   - nodejs
   - npm
 
-# Gateway systemd user service. Disabled by default because platform pairing/tokens are interactive/manual.
-hermes_gateway_enabled: false
+# Gateway systemd user service. Installed and enabled by default; platform pairing/tokens remain manual.
+hermes_gateway_enabled: true
 hermes_gateway_service_enabled: true
 hermes_gateway_service_state: started
 hermes_gateway_extra_args: ""
 
-# Dashboard systemd user service. Disabled by default; set hermes_dashboard_enabled: true to install it.
-hermes_dashboard_enabled: false
+# Dashboard systemd user service. Installed and enabled by default, but the firewall is not opened by this role.
+hermes_dashboard_enabled: true
 hermes_dashboard_service_enabled: true
 hermes_dashboard_service_state: started
 hermes_dashboard_host: 0.0.0.0
