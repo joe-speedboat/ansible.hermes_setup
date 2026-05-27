@@ -42,11 +42,13 @@ hermes_dashboard_extra_args: ""
 # Optional nginx reverse proxy for the Hermes dashboard. The intended multi-user
 # pattern is one Linux user + one loopback dashboard port + one DNS vhost per
 # Hermes instance, for example chris-hermes.example.ch -> 127.0.0.1:8081.
-hermes_nginx_enabled: false
+hermes_nginx_enabled: true
 hermes_nginx_fqdn: "{{ ansible_fqdn | default(inventory_hostname) }}"
-hermes_nginx_conf: /etc/nginx/conf.d/hermes.conf
+hermes_nginx_conf: "/etc/nginx/conf.d/{{ hermes_nginx_fqdn }}.conf"
 hermes_nginx_client_max_body_size: 100m
 hermes_nginx_enable_firewall: true
+firewalld_open_ports:
+  - 443/tcp
 
 hermes_nginx_tls_enabled: true
 hermes_nginx_tls_dir: /etc/pki/tls/hermes
@@ -59,13 +61,6 @@ hermes_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes
 hermes_nginx_basic_auth_realm: Hermes
 hermes_nginx_basic_auth_user: hermes
 hermes_nginx_basic_auth_password: changeme
-hermes_nginx_basic_auth_users: []
-# Example:
-# hermes_nginx_basic_auth_users:
-#   - name: chris
-#     password: "{{ vault_hermes_chris_password }}"
-#   - name: admin
-#     password: "{{ vault_hermes_admin_password }}"
 
 # Configure default LLM provider/model for OpenAI Codex OAuth.
 # This writes only non-secret defaults. Authentication remains manual:
