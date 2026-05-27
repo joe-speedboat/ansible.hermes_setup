@@ -10,7 +10,6 @@ This role is intentionally conservative for sysadmin use:
 - optionally writes non-secret OpenAI Codex defaults into Hermes config
 - prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
 - optionally installs and manages a `hermes-dashboard.service` systemd user service
-- prints ready-to-use post-install commands for Codex auth, messaging gateway setup, and Telegram pairing
 - optionally installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries
 
 ## Requirements
@@ -102,7 +101,7 @@ sudo -iu hermes bash -lc 'cd ~/.hermes/hermes-agent && npx playwright --version'
 
 ## Messaging Gateway / Telegram Pairing
 
-After the role finishes, it prints the same commands below. To configure Telegram or another messenger, run the interactive gateway wizard as the `hermes` user:
+To configure Telegram or another messenger, run the interactive gateway wizard as the `hermes` user:
 
 ```bash
 sudo -iu hermes hermes gateway setup
