@@ -128,8 +128,10 @@ Run `hermes gateway setup` first if you want a configured platform such as Teleg
 Create the user service directory:
 
 ```bash
-sudo -iu hermes mkdir -p ~/.config/systemd/user
+sudo install -d -o hermes -g hermes -m 0755 /home/hermes/.config/systemd/user
 ```
+
+Do not use `sudo -iu hermes mkdir -p ~/.config/systemd/user` from a root/admin shell: many shells expand `~` before `sudo` runs, which tries to create `/root/.config/...` as the unprivileged `hermes` user.
 
 Create `/home/hermes/.config/systemd/user/hermes-gateway.service`:
 
@@ -206,7 +208,7 @@ hermes_dashboard_service_state: started
 Create the user service directory:
 
 ```bash
-sudo -iu hermes mkdir -p ~/.config/systemd/user
+sudo install -d -o hermes -g hermes -m 0755 /home/hermes/.config/systemd/user
 ```
 
 Create `/home/hermes/.config/systemd/user/hermes-dashboard.service`:
@@ -270,6 +272,10 @@ sudo runuser -u hermes -- env \
   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u hermes)/bus \
   systemctl --user is-enabled hermes-dashboard.service
 
+for i in {1..30}; do
+  curl -fsS http://127.0.0.1:8080 >/dev/null && break
+  sleep 2
+done
 curl -fsS http://127.0.0.1:8080 >/dev/null
 ```
 
