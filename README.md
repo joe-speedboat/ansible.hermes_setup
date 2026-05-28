@@ -247,7 +247,7 @@ sudo -iu hermes hermes pairing approve telegram <CODE>
 
 ## Manual Setup Documentation
 
-For a copy/paste manual runbook that mirrors this role, see [`docs/manual-setup-rocky10.md`](docs/manual-setup-rocky10.md).
+For a copy/paste manual runbook that mirrors this role, see [`docs/manual-setup-rocky10.md`](https://github.com/joe-speedboat/ansible.hermes_setup/blob/master/docs/manual-setup-rocky10.md).
 
 ## License
 
