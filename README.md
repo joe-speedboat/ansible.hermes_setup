@@ -12,6 +12,7 @@ This role is intentionally conservative for sysadmin use:
 - installs, enables, and starts a `hermes-gateway.service` systemd user service by default
 - installs, enables, and starts a loopback-only `hermes-dashboard.service` systemd user service by default
 - optionally exposes the dashboard through nginx HTTPS + Basic Auth
+- optionally installs a user-scope Ansible runtime for the dedicated `hermes` user
 - installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries by default
 
 ## Requirements
@@ -59,6 +60,8 @@ Important defaults from `defaults/main.yml`:
 - `hermes_nginx_basic_auth_file`: htpasswd file path. Default: `/etc/nginx/.htpasswd-hermes`
 - `hermes_nginx_basic_auth_user`: Basic Auth username. Default: `hermes`
 - `hermes_nginx_basic_auth_password`: Basic Auth password. Default: `changeme`
+- `ansible_enable`: install a user-scope Ansible runtime for the dedicated Hermes user via `https://ansible-uv.bitbull.ch`. Default: `false`
+- `ansible_home`: Ansible userspace install directory. Default: `{{ hermes_home }}/ansible`
 - `configure_codex`: configure non-secret Codex defaults. Default: `true`
 - `hermes_codex_provider`: default provider. Default: `openai-codex`
 - `hermes_codex_model`: default model. Default: `gpt-5.5`
@@ -166,6 +169,12 @@ Check Hermes:
 ```bash
 sudo -iu hermes hermes --version
 sudo -iu hermes hermes doctor
+```
+
+If `ansible_enable: true`, the role installs Ansible below `{{ hermes_home }}/ansible`, wires the runtime profile into the Hermes user's `.bashrc`, and verifies it during the run. Manual check:
+
+```bash
+sudo -iu hermes ansible --version
 ```
 
 If `hermes_gateway_enabled: true`, check the gateway user service:
