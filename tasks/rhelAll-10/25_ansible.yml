@@ -1,0 +1,38 @@
+---
+- name: Install Ansible user runtime for Hermes user
+  ansible.builtin.shell: |
+    set -o pipefail
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home | quote }} SCOPE=user ANSIBLE_HOME={{ ansible_home | quote }} sh -c 'curl -fsSL {{ ansible_install_url | quote }} | sh'
+  args:
+    executable: /bin/bash
+    creates: "{{ ansible_home }}/apps/.ansible-uv-installer"
+  when: ansible_enable | bool
+
+- name: Ensure Hermes shell loads Ansible runtime profile
+  ansible.builtin.blockinfile:
+    path: "{{ hermes_home }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Hermes Ansible runtime"
+    block: |
+      if [ -f "{{ ansible_home }}/apps/profile.d/ansible.sh" ]; then
+        . "{{ ansible_home }}/apps/profile.d/ansible.sh"
+      fi
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0644'
+    create: true
+  when: ansible_enable | bool
+
+- name: Check Hermes user Ansible version
+  ansible.builtin.shell: |
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home | quote }} bash -lc "source {{ (ansible_home ~ '/apps/profile.d/ansible.sh') | quote }} && ansible --version"
+  args:
+    executable: /bin/bash
+  register: hermes_ansible_version_result
+  changed_when: false
+  when: ansible_enable | bool
+
+- name: Show Hermes user Ansible version
+  ansible.builtin.debug:
+    var: hermes_ansible_version_result.stdout_lines
+  when: ansible_enable | bool
+...

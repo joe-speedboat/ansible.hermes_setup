@@ -7,6 +7,12 @@ hermes_shell: /bin/bash
 hermes_install_url: https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh
 hermes_install_if_missing: true
 
+# Optional Ansible userspace control-node runtime for the dedicated Hermes user.
+# Installs via https://github.com/joe-speedboat/ansible.installer into hermes_home.
+ansible_enable: false
+ansible_install_url: https://ansible-uv.bitbull.ch
+ansible_home: "{{ hermes_home }}/ansible"
+
 # Base packages required for Hermes CLI, optional dashboard, systemd user services, and admin troubleshooting.
 hermes_base_packages:
   - bash
