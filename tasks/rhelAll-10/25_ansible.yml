@@ -2,7 +2,7 @@
 - name: Install Ansible user runtime for Hermes user
   ansible.builtin.shell: |
     set -o pipefail
-    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home | quote }} SCOPE=user ANSIBLE_HOME={{ ansible_home | quote }} sh -c 'curl -fsSL {{ ansible_install_url | quote }} | sh'
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home | quote }} SCOPE=user INSTALL_USER={{ hermes_user | quote }} ANSIBLE_HOME={{ ansible_home | quote }} sh -c 'curl -fsSL {{ ansible_install_url | quote }} | sh'
   args:
     executable: /bin/bash
     creates: "{{ ansible_home }}/apps/.ansible-uv-installer"
