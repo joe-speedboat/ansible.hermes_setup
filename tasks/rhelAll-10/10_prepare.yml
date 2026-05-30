@@ -1,9 +1,9 @@
 ---
-- name: Install EPEL repository before Hermes packages
+- name: Install repository packages before Hermes packages
   ansible.builtin.dnf:
-    name: "{{ hermes_epel_release_package }}"
+    name: "{{ hermes_repo_packages }}"
     state: present
-  when: hermes_epel_enabled | bool
+  when: hermes_repo_packages | length > 0
 
 - name: Install Hermes base packages
   ansible.builtin.dnf:
