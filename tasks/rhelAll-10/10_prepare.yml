@@ -1,4 +1,10 @@
 ---
+- name: Install repository packages before Hermes packages
+  ansible.builtin.dnf:
+    name: "{{ hermes_repo_packages }}"
+    state: present
+  when: hermes_repo_packages | length > 0
+
 - name: Install Hermes base packages
   ansible.builtin.dnf:
     name: "{{ hermes_base_packages }}"
