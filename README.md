@@ -25,13 +25,21 @@ This role is intentionally conservative for sysadmin use:
 
 ## Installation
 
-Install from GitHub into the Galaxy-style role path:
+Install the role with one of these methods.
+
+1. Direct GitHub checkout into a Galaxy-style role path:
 
 ```bash
 git clone https://github.com/joe-speedboat/ansible.hermes_setup.git /etc/ansible/roles/joe-speedboat.hermes_setup
 ```
 
-`ansible-galaxy` has no `clone` subcommand. For a direct GitHub checkout, use `git clone` as shown above, or use it from a project-local `roles/joe-speedboat.hermes_setup` directory.
+For project-local checkouts, clone it into `roles/joe-speedboat.hermes_setup` below your Ansible project.
+
+2. Ansible Galaxy:
+
+```bash
+ansible-galaxy role install joe-speedboat.hermes_setup
+```
 
 ## Role Variables
 
