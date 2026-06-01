@@ -1,5 +1,56 @@
 # Changelog
 
+
+## ansible.hermes_setup v1.1.1 - 2026-06-01
+
+Target branch: `docs/fqdn-scoped-nginx-defaults`
+
+### Highlights
+
+- Makes the default nginx reverse-proxy artefacts safe for multi-instance Hermes deployments on one VM.
+- Scopes generated TLS certificate/key paths and Basic Auth files by `hermes_nginx_fqdn`.
+- Uses the vhost FQDN as the default Basic Auth realm, making browser prompts clearer for multi-vhost setups.
+- Updates README and the Rocky 10 manual setup runbook to match the new defaults.
+
+### Changed defaults
+
+- `hermes_nginx_tls_cert`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.crt`.
+- `hermes_nginx_tls_key`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.key`.
+- `hermes_nginx_basic_auth_file`: now defaults to `/etc/nginx/.htpasswd-hermes-{{ hermes_nginx_fqdn }}`.
+- `hermes_nginx_basic_auth_realm`: now defaults to `{{ hermes_nginx_fqdn }}`.
+
+### Why this changed
+
+The role supports one Linux user, one loopback dashboard port, and one nginx vhost per Hermes instance. With the previous defaults, repeated role invocations on the same VM reused shared paths such as `/etc/pki/tls/hermes/tls.crt`, `/etc/pki/tls/hermes/tls.key`, and `/etc/nginx/.htpasswd-hermes`. That made multi-instance setups prone to overwriting or unintentionally sharing TLS and Basic Auth artefacts between vhosts.
+
+The new FQDN-scoped defaults make the common multi-instance pattern safe without requiring every playbook to override the TLS and htpasswd paths manually.
+
+### Documentation
+
+- Documents the FQDN-scoped nginx TLS certificate/key defaults and Basic Auth file/realm defaults in `README.md`.
+- Updates the multi-instance README example to rely on FQDN-scoped defaults instead of per-user custom paths.
+- Updates `docs/manual-setup-rocky10.md` so the manual nginx example uses FQDN-scoped TLS and htpasswd paths.
+- Adds a security note explaining that the default TLS and htpasswd paths are scoped by `hermes_nginx_fqdn` for multiple Hermes vhosts on the same VM.
+
+### Tests and validation
+
+- Extends `tests/test_prepare_static.py` with assertions for the FQDN-scoped nginx defaults.
+- Verified before release preparation:
+  - `uvx --python 3.12 pytest -v` -> `2 passed`
+  - `ansible-playbook tests/test.yml -i localhost, -c local --syntax-check` with temporary `ANSIBLE_ROLES_PATH` -> ok
+  - `ansible-playbook tests/nginx_render.yml -i localhost, -c local --syntax-check` with temporary `ANSIBLE_ROLES_PATH` -> ok
+  - `ansible-playbook tests/nginx_tasks_syntax.yml -i localhost, -c local --syntax-check` with temporary `ANSIBLE_ROLES_PATH` -> ok
+  - `ansible-playbook tests/nginx_render.yml -i localhost, -c local` with temporary `ANSIBLE_ROLES_PATH` -> assertions passed
+  - `git diff --check` -> ok
+
+### Changed files since v1.1.0
+
+- `CHANGELOG.md`
+- `README.md`
+- `defaults/main.yml`
+- `docs/manual-setup-rocky10.md`
+- `tests/test_prepare_static.py`
+
 ## ansible.hermes_setup v1.1.0 - 2026-05-30
 
 Target commit: `86b27a2` (`master`)

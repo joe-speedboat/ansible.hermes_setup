@@ -63,9 +63,12 @@ Important defaults from `defaults/main.yml`:
 - `hermes_nginx_enable_firewall`: manage firewalld ports. Default: `true`
 - `firewalld_open_ports`: list of ports to open in firewalld when nginx firewall management is enabled. Default: `['443/tcp']`
 - `hermes_nginx_tls_dir`: directory for role-managed self-signed TLS material. Default: `/etc/pki/tls/hermes`
+- `hermes_nginx_tls_cert`: certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.crt`
+- `hermes_nginx_tls_key`: private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.key`
 - `hermes_nginx_generate_self_signed_cert`: generate a self-signed cert when no external cert is provided. Default: `true`
 - `hermes_nginx_basic_auth_enabled`: enable nginx Basic Auth. Default: `true`
-- `hermes_nginx_basic_auth_file`: htpasswd file path. Default: `/etc/nginx/.htpasswd-hermes`
+- `hermes_nginx_basic_auth_file`: htpasswd file path. Default: `/etc/nginx/.htpasswd-hermes-{{ hermes_nginx_fqdn }}`
+- `hermes_nginx_basic_auth_realm`: Basic Auth realm shown by browsers. Default: `{{ hermes_nginx_fqdn }}`
 - `hermes_nginx_basic_auth_user`: Basic Auth username. Default: `hermes`
 - `hermes_nginx_basic_auth_password`: Basic Auth password. Default: `changeme`
 - `ansible_enable`: install a user-scope Ansible runtime for the dedicated Hermes user via `https://ansible-uv.bitbull.ch`. Default: `false`
@@ -106,7 +109,7 @@ Important defaults from `defaults/main.yml`:
 
 ## Example Playbook: multiple Hermes users via DNS vhosts
 
-Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes instance. This avoids subfolder rewrites for `/api/...` and WebSocket endpoints.
+Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes instance. This avoids subfolder rewrites for `/api/...` and WebSocket endpoints. The nginx TLS certificate/key and htpasswd defaults include `hermes_nginx_fqdn`, so multiple role invocations on one VM do not overwrite each other.
 
 ```yaml
 ---
@@ -143,10 +146,8 @@ Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes 
 
         hermes_nginx_enabled: true
         hermes_nginx_fqdn: "{{ hermes_instance.fqdn }}"
-        hermes_nginx_tls_dir: "/etc/pki/tls/hermes-{{ hermes_instance.user }}"
-        hermes_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/tls.crt"
-        hermes_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/tls.key"
-        hermes_nginx_basic_auth_file: "/etc/nginx/.htpasswd-hermes-{{ hermes_instance.user }}"
+        # FQDN-scoped defaults keep TLS/key material and htpasswd files separate per vhost.
+        hermes_nginx_tls_dir: /etc/pki/tls/hermes
         hermes_nginx_basic_auth_user: "{{ hermes_instance.auth_user }}"
         hermes_nginx_basic_auth_password: "{{ hermes_instance.auth_password }}"
 ...
@@ -258,7 +259,7 @@ sudo -iu hermes hermes pairing approve telegram <CODE>
 
 - The Hermes Linux user is deliberately not added to `wheel` or any sudo group.
 - The dashboard service is loopback-only by default (`127.0.0.1:8080`) and does not need a direct firewall rule.
-- For browser access, prefer `hermes_nginx_enabled: true` with HTTPS and Basic Auth.
+- For browser access, prefer `hermes_nginx_enabled: true` with HTTPS and Basic Auth. The default TLS and htpasswd paths are scoped by `hermes_nginx_fqdn` to support several Hermes vhosts on the same VM.
 - Use one DNS vhost per Hermes user. Subfolder deployments are not recommended for Hermes dashboard.
 - Secrets belong in `/home/<user>/.hermes/.env`, `/home/<user>/.hermes/auth.json`, Hermes' auth store, or Ansible Vault variables. Do not commit tokens or real Basic Auth passwords to Git.
 
