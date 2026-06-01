@@ -65,13 +65,13 @@ firewalld_open_ports:
 
 hermes_nginx_tls_enabled: true
 hermes_nginx_tls_dir: /etc/pki/tls/hermes
-hermes_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/tls.crt"
-hermes_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/tls.key"
+hermes_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.crt"
+hermes_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.key"
 hermes_nginx_generate_self_signed_cert: true
 
 hermes_nginx_basic_auth_enabled: true
-hermes_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes
-hermes_nginx_basic_auth_realm: Hermes
+hermes_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-{{ hermes_nginx_fqdn }}
+hermes_nginx_basic_auth_realm: "{{ hermes_nginx_fqdn }}"
 hermes_nginx_basic_auth_user: hermes
 hermes_nginx_basic_auth_password: changeme
 
