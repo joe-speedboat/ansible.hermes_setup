@@ -289,24 +289,24 @@ The Ansible role can enable this automatically with `hermes_nginx_enabled: true`
 sudo dnf install -y nginx openssl
 sudo mkdir -p /etc/pki/tls/hermes
 sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
-  -keyout /etc/pki/tls/hermes/tls.key \
-  -out /etc/pki/tls/hermes/tls.crt \
+  -keyout /etc/pki/tls/hermes/hermes.example.ch_tls.key \
+  -out /etc/pki/tls/hermes/hermes.example.ch_tls.crt \
   -subj '/CN=hermes.example.ch' \
   -addext 'subjectAltName=DNS:hermes.example.ch'
-sudo chmod 0600 /etc/pki/tls/hermes/tls.key
+sudo chmod 0600 /etc/pki/tls/hermes/hermes.example.ch_tls.key
 ```
 
-Create `/etc/nginx/.htpasswd-hermes` with a SHA-512 crypt hash. Use a real password, ideally sourced from a secret manager or Ansible Vault:
+Create `/etc/nginx/.htpasswd-hermes-hermes.example.ch` with a SHA-512 crypt hash. Use a real password, ideally sourced from a secret manager or Ansible Vault:
 
 ```bash
-python3 - <<'PY' | sudo tee /etc/nginx/.htpasswd-hermes >/dev/null
+python3 - <<'PY' | sudo tee /etc/nginx/.htpasswd-hermes-hermes.example.ch >/dev/null
 import crypt, getpass
 user = 'chris'
 password = getpass.getpass('Basic Auth password: ')
 print(f'{user}:{crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))}')
 PY
-sudo chown root:nginx /etc/nginx/.htpasswd-hermes
-sudo chmod 0640 /etc/nginx/.htpasswd-hermes
+sudo chown root:nginx /etc/nginx/.htpasswd-hermes-hermes.example.ch
+sudo chmod 0640 /etc/nginx/.htpasswd-hermes-hermes.example.ch
 ```
 
 Create `/etc/nginx/conf.d/hermes.conf`:
@@ -323,14 +323,14 @@ server {
     http2 on;
     server_name hermes.example.ch;
 
-    ssl_certificate /etc/pki/tls/hermes/tls.crt;
-    ssl_certificate_key /etc/pki/tls/hermes/tls.key;
+    ssl_certificate /etc/pki/tls/hermes/hermes.example.ch_tls.crt;
+    ssl_certificate_key /etc/pki/tls/hermes/hermes.example.ch_tls.key;
     ssl_protocols TLSv1.2 TLSv1.3;
 
     client_max_body_size 100m;
 
-    auth_basic "Hermes";
-    auth_basic_user_file /etc/nginx/.htpasswd-hermes;
+    auth_basic "hermes.example.ch";
+    auth_basic_user_file /etc/nginx/.htpasswd-hermes-hermes.example.ch;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -370,7 +370,7 @@ curl -skI https://hermes.example.ch/ | sed -n '1,8p'
 curl -skI -u chris:'<password>' https://hermes.example.ch/ | sed -n '1,8p'
 ```
 
-For multiple Hermes users, use one DNS vhost per Linux user and dashboard port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
+For multiple Hermes users, use one DNS vhost per Linux user and dashboard port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files, private keys, and htpasswd files scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
 
 ## 9. Pair Messaging Platforms such as Telegram
 
