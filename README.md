@@ -11,7 +11,9 @@ This role is intentionally conservative for sysadmin use:
 - prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
 - installs, enables, and starts a `hermes-gateway.service` systemd user service by default
 - installs, enables, and starts a loopback-only `hermes-dashboard.service` systemd user service by default
+- optionally installs, enables, and starts a loopback-only `hermes-webui.service` systemd user service
 - optionally exposes the dashboard through nginx HTTPS + Basic Auth
+- optionally exposes Hermes WebUI through a separate nginx HTTPS + Basic Auth DNS vhost
 - optionally installs a user-scope Ansible runtime for the dedicated `hermes` user
 - installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries by default
 
@@ -21,7 +23,7 @@ This role is intentionally conservative for sysadmin use:
 - Ansible 2.9 or newer
 - root or passwordless sudo access for package installation, user creation, linger, and service setup
 - outbound HTTPS access from the target host for the Hermes installer and the default Playwright browser download
-- DNS records for every public Hermes dashboard vhost when `hermes_nginx_enabled: true`
+- DNS records for every public Hermes dashboard/WebUI vhost when `hermes_nginx_enabled: true`
 
 ## Installation
 
@@ -57,6 +59,17 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_host`: dashboard bind address. Default: `127.0.0.1`
 - `hermes_dashboard_port`: dashboard port. Default: `8080`
 - `hermes_dashboard_insecure`: pass `--insecure` to the dashboard. Default: `false`
+- `hermes_webui_enabled`: install Hermes WebUI from `https://github.com/nesquena/hermes-webui`. Default: `false`
+- `hermes_webui_service_enabled`: enable WebUI service at boot when WebUI is installed. Default: `true`
+- `hermes_webui_service_state`: WebUI runtime state when WebUI is installed. Default: `started`
+- `hermes_webui_repo_url`: WebUI Git repository URL. Default: `https://github.com/nesquena/hermes-webui.git`
+- `hermes_webui_repo_version`: WebUI Git version. Default: `master`
+- `hermes_webui_app_dir`: WebUI checkout directory. Default: `{{ hermes_home }}/app/hermes-webui`
+- `hermes_webui_host`: WebUI bind address. Default: `127.0.0.1`
+- `hermes_webui_port`: WebUI port. Default: `8787`
+- `hermes_webui_state_dir`: WebUI state directory. Default: `{{ hermes_config_dir }}/webui`
+- `hermes_webui_default_workspace`: default WebUI workspace. Default: `{{ hermes_home }}/work`
+- `hermes_webui_allowed_origins`: WebUI allowed browser origin. Default: `https://{{ hermes_webui_nginx_fqdn }}`
 - `hermes_nginx_enabled`: install nginx HTTPS reverse proxy for the dashboard. Default: `true`
 - `hermes_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: target FQDN/inventory name
 - `hermes_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_nginx_fqdn }}.conf`
@@ -71,6 +84,12 @@ Important defaults from `defaults/main.yml`:
 - `hermes_nginx_basic_auth_realm`: Basic Auth realm shown by browsers. Default: `{{ hermes_nginx_fqdn }}`
 - `hermes_nginx_basic_auth_user`: Basic Auth username. Default: `hermes`
 - `hermes_nginx_basic_auth_password`: Basic Auth password. Default: `changeme`
+- `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `webui-{{ hermes_nginx_fqdn }}`
+- `hermes_webui_nginx_conf`: WebUI nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf`
+- `hermes_webui_nginx_tls_cert`: WebUI certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt`
+- `hermes_webui_nginx_tls_key`: WebUI private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key`
+- `hermes_webui_nginx_basic_auth_user`: WebUI Basic Auth username. Default: `{{ hermes_nginx_basic_auth_user }}`
+- `hermes_webui_nginx_basic_auth_password`: WebUI Basic Auth password. Default: `{{ hermes_nginx_basic_auth_password }}`
 - `ansible_enable`: install a user-scope Ansible runtime for the dedicated Hermes user via `https://ansible-uv.bitbull.ch`. Default: `false`
 - `ansible_home`: Ansible userspace install directory. Default: `{{ hermes_home }}/ansible`
 - `configure_codex`: configure non-secret Codex defaults. Default: `true`
@@ -80,6 +99,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_playwright_browsers`: browser list for `npx playwright install`. Default: `['chromium']`
 - `hermes_playwright_ldd_check_enabled`: run `ldd` against Playwright's Chromium headless shell and fail if direct shared libraries are missing. Default: `true`
 - `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
+- `hermes_playwright_build_tools_enabled`: explicitly install build tools for npm native module rebuilds. Default: `false`
 
 > Override `hermes_nginx_basic_auth_password` with Ansible Vault for every deployment that exposes nginx beyond a disposable lab. The default `hermes` / `changeme` pair is only there so the role converges from defaults.
 
@@ -104,6 +124,38 @@ Important defaults from `defaults/main.yml`:
         hermes_nginx_fqdn: hermes.example.ch
         hermes_nginx_basic_auth_user: chris
         hermes_nginx_basic_auth_password: "{{ vault_hermes_dashboard_password }}"
+...
+```
+
+## Example Playbook: dashboard and Hermes WebUI on separate vhosts
+
+Use two DNS names for one Hermes instance when both browser interfaces are enabled. The built-in dashboard and Hermes WebUI each keep their own root-relative routes and WebSocket/API endpoints.
+
+```yaml
+---
+- name: Install Hermes dashboard and WebUI on Rocky Linux 10
+  hosts: hermes_servers
+  become: true
+  roles:
+    - role: joe-speedboat.hermes_setup
+      vars:
+        hermes_gateway_enabled: true
+        hermes_dashboard_enabled: true
+        hermes_dashboard_host: 127.0.0.1
+        hermes_dashboard_port: 8080
+
+        hermes_webui_enabled: true
+        hermes_webui_host: 127.0.0.1
+        hermes_webui_port: 8787
+
+        hermes_nginx_enabled: true
+        # Built-in Hermes dashboard:
+        hermes_nginx_fqdn: hermes1-adm.example.ch
+        # Hermes WebUI:
+        hermes_webui_nginx_fqdn: hermes1.example.ch
+
+        hermes_nginx_basic_auth_user: chris
+        hermes_nginx_basic_auth_password: "{{ vault_hermes_password }}"
 ...
 ```
 
@@ -155,9 +207,9 @@ Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes 
 
 ## Why vhosts instead of subfolders?
 
-Hermes dashboard uses root-relative frontend assets, REST API routes under `/api/...`, and WebSocket endpoints such as `/api/pty`, `/api/ws`, `/api/pub`, and `/api/events`. DNS vhosts keep those paths unchanged per instance. Subfolder deployments would require fragile path rewriting and are not recommended.
+Hermes dashboard and Hermes WebUI use root-relative frontend assets, REST API routes under `/api/...`, and WebSocket endpoints. DNS vhosts keep those paths unchanged per interface and per instance. Subfolder deployments would require fragile path rewriting and are not recommended.
 
-The nginx template also forwards `Host: 127.0.0.1:<port>` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. Basic Auth credentials are not forwarded to the Hermes backend.
+For the built-in dashboard, the nginx template forwards `Host: 127.0.0.1:<port>` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. For Hermes WebUI, the template preserves the browser-visible `Host` and `X-Forwarded-*` headers and configures `HERMES_WEBUI_ALLOWED_ORIGINS` for the WebUI service. Basic Auth credentials are not forwarded to either backend.
 
 ## After the Role Run
 
@@ -201,6 +253,14 @@ sudo -iu hermes systemctl --user is-enabled hermes-dashboard.service
 curl -fsS http://127.0.0.1:8080 >/dev/null
 ```
 
+If `hermes_webui_enabled: true`, check the loopback WebUI:
+
+```bash
+sudo -iu hermes systemctl --user status hermes-webui.service --no-pager
+sudo -iu hermes systemctl --user is-enabled hermes-webui.service
+curl -fsS http://127.0.0.1:8787/health
+```
+
 If `hermes_nginx_enabled: true`, check nginx and the authenticated HTTPS endpoint:
 
 ```bash
@@ -210,6 +270,12 @@ curl -skI -u chris:"${HERMES_DASHBOARD_PASSWORD}" https://hermes.example.ch/ | s
 ```
 
 Expected behaviour: the unauthenticated request returns `401 Unauthorized`; the authenticated request reaches the Hermes dashboard.
+
+When WebUI is enabled, check its second vhost with a GET request. The WebUI backend does not implement `HEAD` on `/`, so `curl -I` may return `501 Not Implemented` even when a normal browser GET works:
+
+```bash
+curl -sk https://hermes1.example.ch/ -u chris:"${HERMES_WEBUI_PASSWORD}" | grep -Eo '<title>[^<]+'
+```
 
 If Playwright is enabled, the role installs the Rocky/RHEL runtime libraries via `dnf`, installs Chromium with `npx playwright install chromium`, checks direct shared-library dependencies with `ldd`, and then runs a real Chromium headless smoke test. Manual checks:
 

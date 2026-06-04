@@ -52,6 +52,22 @@ hermes_dashboard_port: 8080
 hermes_dashboard_insecure: false
 hermes_dashboard_extra_args: ""
 
+# Optional Hermes WebUI service (https://github.com/nesquena/hermes-webui).
+# This is a second browser interface next to the built-in Hermes dashboard.
+# Keep it bound to loopback and expose it through its own nginx DNS vhost.
+hermes_webui_enabled: false
+hermes_webui_service_enabled: true
+hermes_webui_service_state: started
+hermes_webui_repo_url: https://github.com/nesquena/hermes-webui.git
+hermes_webui_repo_version: master
+hermes_webui_app_dir: "{{ hermes_home }}/app/hermes-webui"
+hermes_webui_host: 127.0.0.1
+hermes_webui_port: 8787
+hermes_webui_state_dir: "{{ hermes_config_dir }}/webui"
+hermes_webui_default_workspace: "{{ hermes_home }}/work"
+hermes_webui_allowed_origins: "https://{{ hermes_webui_nginx_fqdn }}"
+hermes_webui_extra_args: ""
+
 # Optional nginx reverse proxy for the Hermes dashboard. The intended multi-user
 # pattern is one Linux user + one loopback dashboard port + one DNS vhost per
 # Hermes instance, for example chris-hermes.example.ch -> 127.0.0.1:8081.
@@ -75,6 +91,17 @@ hermes_nginx_basic_auth_realm: "{{ hermes_nginx_fqdn }}"
 hermes_nginx_basic_auth_user: hermes
 hermes_nginx_basic_auth_password: changeme
 
+# Optional nginx reverse proxy for Hermes WebUI. This intentionally uses a
+# separate FQDN/vhost from the built-in Hermes dashboard.
+hermes_webui_nginx_fqdn: "webui-{{ hermes_nginx_fqdn }}"
+hermes_webui_nginx_conf: "/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf"
+hermes_webui_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt"
+hermes_webui_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key"
+hermes_webui_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-{{ hermes_webui_nginx_fqdn }}
+hermes_webui_nginx_basic_auth_realm: "{{ hermes_webui_nginx_fqdn }}"
+hermes_webui_nginx_basic_auth_user: "{{ hermes_nginx_basic_auth_user }}"
+hermes_webui_nginx_basic_auth_password: "{{ hermes_nginx_basic_auth_password }}"
+
 # Configure default LLM provider/model for OpenAI Codex OAuth.
 # This writes only non-secret defaults. Authentication remains manual:
 #   sudo -iu hermes hermes auth add openai-codex
@@ -90,6 +117,15 @@ hermes_playwright_browsers:
   - chromium
 hermes_playwright_ldd_check_enabled: true
 hermes_playwright_smoke_test_enabled: true
+# Optional build tools for npm modules that have to compile from source
+# (for example node-pty on some Node/Rocky combinations). Keep disabled for
+# production unless a lab/provisioning run proves they are needed.
+hermes_playwright_build_tools_enabled: false
+hermes_playwright_build_tools_packages:
+  - make
+  - gcc
+  - gcc-c++
+
 hermes_playwright_runtime_packages:
   - liberation-fonts
   - dejavu-sans-fonts

@@ -14,6 +14,26 @@
   no_log: "{{ hermes_nginx_basic_auth_enabled | bool }}"
   when: hermes_nginx_enabled | bool
 
+- name: Validate Hermes WebUI nginx reverse proxy settings
+  ansible.builtin.assert:
+    that:
+      - hermes_webui_nginx_fqdn | length > 0
+      - hermes_webui_host in ['127.0.0.1', 'localhost', '::1']
+      - hermes_webui_nginx_fqdn != hermes_nginx_fqdn
+      - hermes_nginx_tls_enabled | bool
+      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_webui_nginx_basic_auth_user | length > 0)
+      - not (hermes_nginx_basic_auth_enabled | bool) or (hermes_webui_nginx_basic_auth_password | length > 0)
+    fail_msg: >-
+      hermes_webui_enabled with hermes_nginx_enabled requires a non-empty
+      hermes_webui_nginx_fqdn that differs from hermes_nginx_fqdn, a
+      loopback-only hermes_webui_host, TLS enabled, and non-empty Basic Auth
+      user/password when Basic Auth is enabled. Use separate DNS vhosts for
+      the dashboard and WebUI.
+  no_log: "{{ hermes_nginx_basic_auth_enabled | bool }}"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
+
 - name: Warn when Hermes nginx Basic Auth uses the default password
   ansible.builtin.debug:
     msg: >-
@@ -90,6 +110,56 @@
     - hermes_nginx_enabled | bool
     - hermes_nginx_tls_enabled | bool
 
+
+- name: Generate self-signed Hermes WebUI nginx TLS certificate
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:4096
+      - -sha256
+      - -days
+      - "825"
+      - -nodes
+      - -keyout
+      - "{{ hermes_webui_nginx_tls_key }}"
+      - -out
+      - "{{ hermes_webui_nginx_tls_cert }}"
+      - -subj
+      - "/CN={{ hermes_webui_nginx_fqdn }}"
+      - -addext
+      - "subjectAltName=DNS:{{ hermes_webui_nginx_fqdn }}"
+    creates: "{{ hermes_webui_nginx_tls_cert }}"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
+    - hermes_nginx_tls_enabled | bool
+    - hermes_nginx_generate_self_signed_cert | bool
+
+- name: Set Hermes WebUI nginx TLS private key permissions
+  ansible.builtin.file:
+    path: "{{ hermes_webui_nginx_tls_key }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
+    - hermes_nginx_tls_enabled | bool
+
+- name: Set Hermes WebUI nginx TLS certificate permissions
+  ansible.builtin.file:
+    path: "{{ hermes_webui_nginx_tls_cert }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
+    - hermes_nginx_tls_enabled | bool
+
 - name: Write Hermes nginx Basic Auth password file
   ansible.builtin.copy:
     dest: "{{ hermes_nginx_basic_auth_file }}"
@@ -131,6 +201,52 @@
     mode: "0644"
   notify: restart nginx
   when: hermes_nginx_enabled | bool
+
+
+- name: Write Hermes WebUI nginx Basic Auth password file
+  ansible.builtin.copy:
+    dest: "{{ hermes_webui_nginx_basic_auth_file }}"
+    owner: root
+    group: nginx
+    mode: "0640"
+    content: |
+      {{ hermes_webui_nginx_basic_auth_user }}:{{ hermes_webui_nginx_basic_auth_password | password_hash('sha512', hermes_webui_nginx_basic_auth_user) }}
+  no_log: true
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
+    - hermes_nginx_basic_auth_enabled | bool
+
+- name: Remove Hermes WebUI nginx Basic Auth password file when disabled
+  ansible.builtin.file:
+    path: "{{ hermes_webui_nginx_basic_auth_file }}"
+    state: absent
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
+    - not (hermes_nginx_basic_auth_enabled | bool)
+
+- name: Write Hermes WebUI nginx reverse proxy config
+  ansible.builtin.template:
+    src: nginx-hermes.conf.j2
+    dest: "{{ hermes_webui_nginx_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    hermes_nginx_vhost_fqdn: "{{ hermes_webui_nginx_fqdn }}"
+    hermes_nginx_vhost_port: "{{ hermes_webui_port }}"
+    hermes_nginx_vhost_tls_cert: "{{ hermes_webui_nginx_tls_cert }}"
+    hermes_nginx_vhost_tls_key: "{{ hermes_webui_nginx_tls_key }}"
+    hermes_nginx_vhost_basic_auth_file: "{{ hermes_webui_nginx_basic_auth_file }}"
+    hermes_nginx_vhost_basic_auth_realm: "{{ hermes_webui_nginx_basic_auth_realm }}"
+    hermes_nginx_vhost_preserve_public_host: true
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
 
 - name: Allow nginx to proxy Hermes dashboard under SELinux
   ansible.builtin.command:

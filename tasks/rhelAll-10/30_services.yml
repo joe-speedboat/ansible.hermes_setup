@@ -6,7 +6,7 @@
     owner: "{{ hermes_user }}"
     group: "{{ hermes_group }}"
     mode: '0755'
-  when: (hermes_gateway_enabled | bool) or (hermes_dashboard_enabled | bool)
+  when: (hermes_gateway_enabled | bool) or (hermes_dashboard_enabled | bool) or (hermes_webui_enabled | bool)
 
 - name: Install Hermes gateway systemd user unit
   ansible.builtin.template:
@@ -120,6 +120,18 @@
     - hermes_dashboard_enabled | bool
     - hermes_dashboard_service_state in ['started', 'stopped', 'restarted']
 
+- name: Wait for Hermes dashboard HTTP endpoint
+  ansible.builtin.uri:
+    url: "http://{{ hermes_dashboard_host }}:{{ hermes_dashboard_port }}/"
+    return_content: false
+  register: hermes_dashboard_health_result
+  retries: 30
+  delay: 2
+  until: hermes_dashboard_health_result.status in [200, 302, 401, 403]
+  when:
+    - hermes_dashboard_enabled | bool
+    - hermes_dashboard_service_state in ['started', 'restarted']
+
 - name: Check Hermes dashboard user service status
   ansible.builtin.command: >-
     runuser -u {{ hermes_user }} -- env
@@ -135,4 +147,79 @@
   ansible.builtin.debug:
     msg: "hermes-dashboard.service is {{ hermes_dashboard_active_result.stdout | default('not checked') }}"
   when: hermes_dashboard_enabled | bool
+- name: Install Hermes WebUI systemd user unit
+  ansible.builtin.template:
+    src: hermes-webui.service.j2
+    dest: "{{ hermes_webui_unit_path }}"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0644'
+  register: hermes_webui_unit
+  when: hermes_webui_enabled | bool
+
+- name: Reload Hermes user systemd manager for WebUI
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user daemon-reload
+  changed_when: hermes_webui_unit.changed
+  when: hermes_webui_enabled | bool
+
+- name: Enable or disable Hermes WebUI user service
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user {{ 'enable' if hermes_webui_service_enabled | bool else 'disable' }} hermes-webui.service
+  register: hermes_webui_enable_result
+  changed_when: "'Created symlink' in hermes_webui_enable_result.stdout or 'Removed' in hermes_webui_enable_result.stdout"
+  when: hermes_webui_enabled | bool
+
+- name: Map Hermes WebUI Ansible service state to systemctl verb
+  ansible.builtin.set_fact:
+    hermes_webui_systemctl_verb: >-
+      {{ {'started': 'start', 'stopped': 'stop', 'restarted': 'restart'}[hermes_webui_service_state] }}
+  when:
+    - hermes_webui_enabled | bool
+    - hermes_webui_service_state in ['started', 'stopped', 'restarted']
+
+- name: Manage Hermes WebUI user service state
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user {{ hermes_webui_systemctl_verb }} hermes-webui.service
+  changed_when: false
+  when:
+    - hermes_webui_enabled | bool
+    - hermes_webui_service_state in ['started', 'stopped', 'restarted']
+
+- name: Wait for Hermes WebUI health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ hermes_webui_host }}:{{ hermes_webui_port }}/health"
+    return_content: true
+  register: hermes_webui_health_result
+  retries: 30
+  delay: 2
+  until: hermes_webui_health_result.status == 200
+  when:
+    - hermes_webui_enabled | bool
+    - hermes_webui_service_state in ['started', 'restarted']
+
+- name: Check Hermes WebUI user service status
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user is-active hermes-webui.service
+  register: hermes_webui_active_result
+  changed_when: false
+  failed_when: false
+  when: hermes_webui_enabled | bool
+
+- name: Show Hermes WebUI service status
+  ansible.builtin.debug:
+    msg: "hermes-webui.service is {{ hermes_webui_active_result.stdout | default('not checked') }}"
+  when: hermes_webui_enabled | bool
 ...

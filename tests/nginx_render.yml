@@ -12,7 +12,14 @@
     hermes_nginx_basic_auth_realm: Hermes Chris
     hermes_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-chris
     hermes_dashboard_port: 8081
+    hermes_webui_port: 8787
+    hermes_webui_nginx_fqdn: webui.example.ch
+    hermes_webui_nginx_tls_cert: /etc/pki/tls/hermes-webui/tls.crt
+    hermes_webui_nginx_tls_key: /etc/pki/tls/hermes-webui/tls.key
+    hermes_webui_nginx_basic_auth_realm: Hermes WebUI
+    hermes_webui_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-webui
     rendered_nginx_conf: /tmp/hermes-nginx-render.conf
+    rendered_webui_nginx_conf: /tmp/hermes-webui-nginx-render.conf
   tasks:
     - name: Render nginx template
       ansible.builtin.template:
@@ -40,4 +47,37 @@
           - "'map $http_upgrade $connection_upgrade' in rendered_nginx_text"
       vars:
         rendered_nginx_text: "{{ rendered_nginx.content | b64decode }}"
+
+    - name: Render WebUI nginx template
+      ansible.builtin.template:
+        src: ../templates/nginx-hermes.conf.j2
+        dest: "{{ rendered_webui_nginx_conf }}"
+        mode: "0644"
+      vars:
+        hermes_nginx_vhost_fqdn: "{{ hermes_webui_nginx_fqdn }}"
+        hermes_nginx_vhost_port: "{{ hermes_webui_port }}"
+        hermes_nginx_vhost_tls_cert: "{{ hermes_webui_nginx_tls_cert }}"
+        hermes_nginx_vhost_tls_key: "{{ hermes_webui_nginx_tls_key }}"
+        hermes_nginx_vhost_basic_auth_realm: "{{ hermes_webui_nginx_basic_auth_realm }}"
+        hermes_nginx_vhost_basic_auth_file: "{{ hermes_webui_nginx_basic_auth_file }}"
+        hermes_nginx_vhost_preserve_public_host: true
+
+    - name: Read rendered WebUI nginx config
+      ansible.builtin.slurp:
+        src: "{{ rendered_webui_nginx_conf }}"
+      register: rendered_webui_nginx
+
+    - name: Assert WebUI nginx config uses separate public host headers
+      ansible.builtin.assert:
+        that:
+          - "'server_name webui.example.ch;' in rendered_webui_nginx_text"
+          - "'auth_basic \"Hermes WebUI\";' in rendered_webui_nginx_text"
+          - "'auth_basic_user_file /etc/nginx/.htpasswd-hermes-webui;' in rendered_webui_nginx_text"
+          - "'proxy_pass http://127.0.0.1:8787;' in rendered_webui_nginx_text"
+          - "'proxy_set_header Host $host;' in rendered_webui_nginx_text"
+          - "'proxy_set_header X-Forwarded-Host $host;' in rendered_webui_nginx_text"
+          - "'proxy_set_header X-Forwarded-Port 443;' in rendered_webui_nginx_text"
+          - "'proxy_set_header Origin \"\";' not in rendered_webui_nginx_text"
+      vars:
+        rendered_webui_nginx_text: "{{ rendered_webui_nginx.content | b64decode }}"
 ...

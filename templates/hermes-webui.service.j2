@@ -1,0 +1,31 @@
+[Unit]
+Description=Hermes WebUI
+Documentation=https://github.com/nesquena/hermes-webui/
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory={{ hermes_webui_app_dir }}
+EnvironmentFile={{ hermes_webui_app_dir }}/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=HERMES_WEBUI_FOREGROUND=1
+ExecStart={{ hermes_project_path }}/venv/bin/python {{ hermes_webui_app_dir }}/bootstrap.py --no-browser --foreground --host {{ hermes_webui_host }} {{ hermes_webui_port }}{{ (hermes_webui_extra_args | length > 0) | ternary(' ' + hermes_webui_extra_args, '') }}
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hermes-webui
+
+# Keep the WebUI private on loopback; nginx is the public TLS/auth endpoint.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths={{ hermes_home }} /tmp
+
+[Install]
+WantedBy=default.target
