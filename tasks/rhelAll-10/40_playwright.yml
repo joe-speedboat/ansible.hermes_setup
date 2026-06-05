@@ -1,4 +1,12 @@
 ---
+- name: Install Playwright build tools when explicitly enabled
+  ansible.builtin.dnf:
+    name: "{{ hermes_playwright_build_tools_packages }}"
+    state: present
+  when:
+    - hermes_playwright_enabled | bool
+    - hermes_playwright_build_tools_enabled | bool
+
 - name: Check local Playwright package in Hermes project
   ansible.builtin.command: >-
     runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
@@ -11,11 +19,15 @@
   when: hermes_playwright_enabled | bool
 
 - name: Install local Playwright npm package in Hermes project
-  ansible.builtin.command: >-
-    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
-    npm install --no-save playwright
+  ansible.builtin.shell: |
+    set -o pipefail
+    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }} npm install --no-save playwright || {
+      runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }} npm cache clean --force
+      runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }} npm install --no-save playwright
+    }
   args:
     chdir: "{{ hermes_project_path }}"
+    executable: /bin/bash
   when:
     - hermes_playwright_enabled | bool
     - hermes_playwright_npm_check.rc != 0

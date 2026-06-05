@@ -5,5 +5,6 @@ hermes_config_dir: "{{ hermes_home }}/.hermes"
 hermes_systemd_user_dir: "{{ hermes_home }}/.config/systemd/user"
 hermes_gateway_unit_path: "{{ hermes_systemd_user_dir }}/hermes-gateway.service"
 hermes_dashboard_unit_path: "{{ hermes_systemd_user_dir }}/hermes-dashboard.service"
+hermes_webui_unit_path: "{{ hermes_systemd_user_dir }}/hermes-webui.service"
 hermes_user_systemd_runtime_dir: "/run/user/{{ hermes_user_uid | default('') }}"
 ...

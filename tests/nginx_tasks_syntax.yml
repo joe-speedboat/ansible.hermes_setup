@@ -4,14 +4,23 @@
   gather_facts: false
   vars:
     hermes_nginx_enabled: false
-    hermes_nginx_fqdn: hermes.example.ch
+    hermes_dashboard_nginx_fqdn: hermes.example.ch
     hermes_nginx_tls_enabled: true
-    hermes_nginx_basic_auth_enabled: true
-    hermes_nginx_basic_auth_user: hermes
-    hermes_nginx_basic_auth_password: not-the-default
+    hermes_dashboard_nginx_basic_auth_enabled: true
+    hermes_dashboard_nginx_basic_auth_user: hermes
+    hermes_dashboard_nginx_basic_auth_password: not-the-default
     firewalld_open_ports:
       - 443/tcp
     hermes_dashboard_host: 127.0.0.1
+    hermes_webui_enabled: false
+    hermes_webui_host: 127.0.0.1
+    hermes_webui_nginx_fqdn: webui-hermes.example.ch
+    hermes_webui_nginx_tls_cert: /etc/pki/tls/hermes/webui-hermes.example.ch_tls.crt
+    hermes_webui_nginx_tls_key: /etc/pki/tls/hermes/webui-hermes.example.ch_tls.key
+    hermes_webui_nginx_basic_auth_user: hermes
+    hermes_webui_nginx_basic_auth_password: not-the-default
+    hermes_webui_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-webui-hermes.example.ch
+    hermes_webui_nginx_basic_auth_realm: webui-hermes.example.ch
   tasks:
     - name: Import nginx tasks for syntax validation
       ansible.builtin.import_tasks: ../tasks/rhelAll-10/35_nginx.yml

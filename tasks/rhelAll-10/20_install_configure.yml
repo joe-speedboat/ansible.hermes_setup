@@ -56,6 +56,47 @@
       - "Alternative interactive setup: sudo -iu {{ hermes_user }} hermes model"
   when: configure_codex | bool
 
+
+- name: Ensure Hermes WebUI parent directory exists
+  ansible.builtin.file:
+    path: "{{ hermes_webui_app_dir | dirname }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0755'
+  when: hermes_webui_enabled | bool
+
+- name: Clone or update Hermes WebUI repository
+  ansible.builtin.git:
+    repo: "{{ hermes_webui_repo_url }}"
+    dest: "{{ hermes_webui_app_dir }}"
+    version: "{{ hermes_webui_repo_version }}"
+    update: true
+  become: true
+  become_user: "{{ hermes_user }}"
+  when: hermes_webui_enabled | bool
+
+- name: Ensure Hermes WebUI state and workspace directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0755'
+  loop:
+    - "{{ hermes_webui_state_dir }}"
+    - "{{ hermes_webui_default_workspace }}"
+  when: hermes_webui_enabled | bool
+
+- name: Write Hermes WebUI environment file
+  ansible.builtin.template:
+    src: hermes-webui.env.j2
+    dest: "{{ hermes_webui_app_dir }}/.env"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0640'
+  when: hermes_webui_enabled | bool
+
 - name: Check Hermes version
   ansible.builtin.command: >-
     runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}

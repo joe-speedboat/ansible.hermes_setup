@@ -20,5 +20,5 @@
       - ""
       - "4. If nginx is enabled, verify the public endpoint:"
       - "   sudo nginx -t"
-      - "   curl -skI https://{{ hermes_nginx_fqdn | default('<fqdn>') }}/ | sed -n '1,8p'"
+      - "   curl -skI https://{{ hermes_dashboard_nginx_fqdn | default('<fqdn>') }}/ | sed -n '1,8p'"
 ...
