@@ -71,7 +71,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_webui_default_workspace`: default WebUI workspace. Default: `{{ hermes_home }}/work`
 - `hermes_webui_allowed_origins`: WebUI allowed browser origin. Default: `https://{{ hermes_webui_nginx_fqdn }}`
 - `hermes_nginx_enabled`: install nginx HTTPS reverse proxies for enabled browser UIs. Default: `true`
-- `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: target FQDN/inventory name
+- `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: `dash-{{ ansible_fqdn | default(inventory_hostname) }}`
 - `hermes_dashboard_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_dashboard_nginx_fqdn }}.conf`
 - `hermes_nginx_enable_firewall`: manage firewalld ports. Default: `true`
 - `firewalld_open_ports`: list of ports to open in firewalld when nginx firewall management is enabled. Default: `['443/tcp']`
@@ -84,7 +84,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_nginx_basic_auth_realm`: Basic Auth realm shown by browsers. Default: `{{ hermes_dashboard_nginx_fqdn }}`
 - `hermes_dashboard_nginx_basic_auth_user`: Basic Auth username. Default: `hermes`
 - `hermes_dashboard_nginx_basic_auth_password`: Basic Auth password. Default: `changeme`
-- `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `webui-{{ hermes_dashboard_nginx_fqdn }}`
+- `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `web-{{ hermes_dashboard_nginx_fqdn }}`
 - `hermes_webui_nginx_conf`: WebUI nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf`
 - `hermes_webui_nginx_tls_cert`: WebUI certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt`
 - `hermes_webui_nginx_tls_key`: WebUI private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key`
