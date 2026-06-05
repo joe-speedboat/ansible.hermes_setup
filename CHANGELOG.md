@@ -8,16 +8,16 @@ Target branch: `docs/fqdn-scoped-nginx-defaults`
 ### Highlights
 
 - Makes the default nginx reverse-proxy artefacts safe for multi-instance Hermes deployments on one VM.
-- Scopes generated TLS certificate/key paths and Basic Auth files by `hermes_nginx_fqdn`.
+- Scopes generated TLS certificate/key paths and Basic Auth files by `hermes_dashboard_nginx_fqdn`.
 - Uses the vhost FQDN as the default Basic Auth realm, making browser prompts clearer for multi-vhost setups.
 - Updates README and the Rocky 10 manual setup runbook to match the new defaults.
 
 ### Changed defaults
 
-- `hermes_nginx_tls_cert`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.crt`.
-- `hermes_nginx_tls_key`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_nginx_fqdn }}_tls.key`.
-- `hermes_nginx_basic_auth_file`: now defaults to `/etc/nginx/.htpasswd-hermes-{{ hermes_nginx_fqdn }}`.
-- `hermes_nginx_basic_auth_realm`: now defaults to `{{ hermes_nginx_fqdn }}`.
+- `hermes_dashboard_nginx_tls_cert`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.crt`.
+- `hermes_dashboard_nginx_tls_key`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.key`.
+- `hermes_dashboard_nginx_basic_auth_file`: now defaults to `/etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}`.
+- `hermes_dashboard_nginx_basic_auth_realm`: now defaults to `{{ hermes_dashboard_nginx_fqdn }}`.
 
 ### Why this changed
 
@@ -30,7 +30,7 @@ The new FQDN-scoped defaults make the common multi-instance pattern safe without
 - Documents the FQDN-scoped nginx TLS certificate/key defaults and Basic Auth file/realm defaults in `README.md`.
 - Updates the multi-instance README example to rely on FQDN-scoped defaults instead of per-user custom paths.
 - Updates `docs/manual-setup-rocky10.md` so the manual nginx example uses FQDN-scoped TLS and htpasswd paths.
-- Adds a security note explaining that the default TLS and htpasswd paths are scoped by `hermes_nginx_fqdn` for multiple Hermes vhosts on the same VM.
+- Adds a security note explaining that the default TLS and htpasswd paths are scoped by `hermes_dashboard_nginx_fqdn` for multiple Hermes vhosts on the same VM.
 
 ### Tests and validation
 

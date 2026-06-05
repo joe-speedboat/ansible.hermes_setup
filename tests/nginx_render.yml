@@ -3,14 +3,14 @@
   hosts: localhost
   gather_facts: false
   vars:
-    hermes_nginx_fqdn: chris-hermes.example.ch
+    hermes_dashboard_nginx_fqdn: chris-hermes.example.ch
     hermes_nginx_tls_enabled: true
-    hermes_nginx_tls_cert: /etc/pki/tls/hermes-chris/tls.crt
-    hermes_nginx_tls_key: /etc/pki/tls/hermes-chris/tls.key
+    hermes_dashboard_nginx_tls_cert: /etc/pki/tls/hermes-chris/tls.crt
+    hermes_dashboard_nginx_tls_key: /etc/pki/tls/hermes-chris/tls.key
     hermes_nginx_client_max_body_size: 100m
-    hermes_nginx_basic_auth_enabled: true
-    hermes_nginx_basic_auth_realm: Hermes Chris
-    hermes_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-chris
+    hermes_dashboard_nginx_basic_auth_enabled: true
+    hermes_dashboard_nginx_basic_auth_realm: Hermes Chris
+    hermes_dashboard_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-chris
     hermes_dashboard_port: 8081
     hermes_webui_port: 8787
     hermes_webui_nginx_fqdn: webui.example.ch
