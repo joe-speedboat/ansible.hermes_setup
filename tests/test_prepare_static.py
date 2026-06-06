@@ -24,7 +24,16 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
 
     epel_task_index = prepare_tasks.index("Install repository packages before Hermes packages")
     base_task_index = prepare_tasks.index("Install Hermes base packages")
+    runtime_task_index = prepare_tasks.index("Install Playwright runtime packages when enabled")
+    build_tools_task_index = prepare_tasks.index("Install npm native build tools when explicitly enabled")
+    user_task_index = prepare_tasks.index("Create dedicated Hermes user without sudo rights")
+
     assert epel_task_index < base_task_index
+    assert base_task_index < runtime_task_index
+    assert runtime_task_index < build_tools_task_index
+    assert build_tools_task_index < user_task_index
     assert 'name: "{{ hermes_repo_packages }}"' in prepare_tasks
     assert "when: hermes_repo_packages | length > 0" in prepare_tasks
     assert 'name: "{{ hermes_base_packages }}"' in prepare_tasks
+    assert 'name: "{{ hermes_playwright_build_tools_packages }}"' in prepare_tasks
+    assert "hermes_playwright_build_tools_enabled | bool" in prepare_tasks

@@ -17,6 +17,7 @@ def test_ansible_addon_is_opt_in_and_runs_as_hermes_user():
     assert "SCOPE=user" in tasks
     assert "INSTALL_USER={{ hermes_user | quote }}" in tasks
     assert "ANSIBLE_HOME={{ ansible_home | quote }}" in tasks
+    assert 'chdir: "{{ hermes_home }}"' in tasks
     assert "{{ ansible_install_url | quote }}" in tasks
     assert "when: ansible_enable | bool" in tasks
     assert "{{ ansible_home }}/apps/profile.d/ansible.sh" in tasks

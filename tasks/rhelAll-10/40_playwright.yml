@@ -1,12 +1,4 @@
 ---
-- name: Install Playwright build tools when explicitly enabled
-  ansible.builtin.dnf:
-    name: "{{ hermes_playwright_build_tools_packages }}"
-    state: present
-  when:
-    - hermes_playwright_enabled | bool
-    - hermes_playwright_build_tools_enabled | bool
-
 - name: Check local Playwright package in Hermes project
   ansible.builtin.command: >-
     runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}
