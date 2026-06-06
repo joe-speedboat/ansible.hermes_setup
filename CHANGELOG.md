@@ -14,6 +14,8 @@ Target branch: `docs/fqdn-scoped-nginx-defaults`
 
 ### Changed defaults
 
+- `hermes_dashboard_nginx_fqdn`: now defaults to `dash-{{ ansible_fqdn | default(inventory_hostname) }}`.
+- `hermes_webui_nginx_fqdn`: now defaults to `web-{{ hermes_dashboard_nginx_fqdn }}`.
 - `hermes_dashboard_nginx_tls_cert`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.crt`.
 - `hermes_dashboard_nginx_tls_key`: now defaults to `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.key`.
 - `hermes_dashboard_nginx_basic_auth_file`: now defaults to `/etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}`.
@@ -83,6 +85,7 @@ Target commit: `86b27a2` (`master`)
 #### Hermes CLI helper packages
 
 - Adds `ripgrep` to `hermes_base_packages` for Hermes' fast file search support.
+- Adds `gh` to `hermes_base_packages` so Hermes installs include the GitHub CLI for repository and PR workflows.
 - Adds `ffmpeg-free` to `hermes_base_packages`, providing `/usr/bin/ffmpeg` on Rocky/RHEL 10 from EPEL.
 
 ### Fixes

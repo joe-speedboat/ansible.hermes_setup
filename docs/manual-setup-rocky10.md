@@ -27,6 +27,7 @@ sudo dnf install -y \
   ca-certificates \
   curl \
   git \
+  gh \
   jq \
   openssl \
   python3 \

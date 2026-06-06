@@ -16,6 +16,14 @@
     state: "{{ hermes_playwright_package_state }}"
   when: hermes_playwright_enabled | bool
 
+- name: Install npm native build tools when explicitly enabled
+  ansible.builtin.dnf:
+    name: "{{ hermes_playwright_build_tools_packages }}"
+    state: present
+  when:
+    - hermes_playwright_enabled | bool
+    - hermes_playwright_build_tools_enabled | bool
+
 - name: Create dedicated Hermes group
   ansible.builtin.group:
     name: "{{ hermes_group }}"
