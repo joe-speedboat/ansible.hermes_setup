@@ -10,9 +10,12 @@ flowchart TD
 
     subgraph PHASE_10["📦 Phase 10: Prepare System"]
         direction TB
-        P10A["Install Base Packages\n(bash, curl, git, jq, nodejs, npm, ...)"]
+        P10A["Install Base Packages\n(bash, curl, git, gh, jq, nodejs, npm, ...)"]
         P10A --> P10B["Install Playwright Runtime Packages\n(fonts, gtk3, atk, cups-libs, ...)"]
-        P10B --> P10C["Create hermes Group & User\n(no sudo, no wheel, /home/hermes)"]
+        P10B --> P10BT{"Build tools\nenabled?"}
+        P10BT -->|yes| P10BU["Install npm Native Build Tools\n(make, gcc, gcc-c++)"]
+        P10BU --> P10C
+        P10BT -->|no| P10C["Create hermes Group & User\n(no sudo, no wheel, /home/hermes)"]
         P10C --> P10D["Remove hermes from wheel group"]
         P10D --> P10E["Enable linger loginctl\n+ Start user@UID.service"]
         P10E --> P10F["Configure .bashrc\nXDG_RUNTIME_DIR + DBUS"]
@@ -32,6 +35,10 @@ flowchart TD
         P20F --> P20G["Print: manual auth required\nhermes auth add openai-codex"]
         P20D -->|no| P20H["Show installed version"]
         P20G --> P20H
+        P20H --> P20W{"WebUI\nenabled?"}
+        P20W -->|yes| P20X["Clone/update Hermes WebUI\nwrite .env + state/work dirs"]
+        P20W -->|no| P20Z(("⏭️"))
+        P20X --> P20Z
     end
 
     PHASE_20 --> P25_ANSIBLE
@@ -39,7 +46,7 @@ flowchart TD
     subgraph P25_ANSIBLE["🔧 Phase 25: Ansible Runtime (optional)"]
         direction TB
         P25A{"ansible_enable?"}
-        P25A -->|yes| P25B["curl | sh ansible-uv.bitbull.ch\nSCOPE=user → ~/ansible/apps"]
+        P25A -->|yes| P25B["cd ~/ && curl | sh ansible-uv.bitbull.ch\nSCOPE=user → ~/ansible/apps"]
         P25B --> P25C["Add ansible.sh to .bashrc"]
         P25C --> P25D["Show ansible --version"]
         P25A -->|no| P25_SKIP(("⏭️"))
@@ -61,9 +68,17 @@ flowchart TD
         P30H --> P30I["systemctl --user daemon-reload"]
         P30I --> P30J["systemctl --user enable"]
         P30J --> P30K["systemctl --user start (loopback)"]
-        P30K --> P30L["systemctl --user is-active ✓"]
+        P30K --> P30L["dashboard HTTP wait\n+ is-active ✓"]
+
+        P30M{"WebUI\nenabled?"}
+        P30M -->|yes| P30N["Template → hermes-webui.service\n~/.config/systemd/user/"]
+        P30N --> P30O["systemctl --user daemon-reload"]
+        P30O --> P30P["systemctl --user enable/start"]
+        P30P --> P30Q["/health wait\n+ is-active ✓"]
 
         P30A -->|no| P30G
+        P30L --> P30M
+        P30G -->|no| P30M
     end
 
     PHASE_30 --> PHASE_35
@@ -72,12 +87,12 @@ flowchart TD
         direction TB
         P35A{"nginx\nenabled?"}
         P35A -->|no| P35_SKIP(("⏭️"))
-        P35A -->|yes| P35B["Validate: FQDN set, dashboard loopback,\nBasic Auth user/password"]
+        P35A -->|yes| P35B["Validate: dashboard/WebUI FQDNs, loopback,\nBasic Auth user/password"]
         P35B --> P35C["⚠️ Warn if password still 'changeme'"]
         P35C --> P35D["dnf install nginx openssl"]
-        P35D --> P35E["openssl req -x509 -sha256\n→ Self-signed TLS cert (key+crt)"]
-        P35E --> P35F["Write .htpasswd-hermes\nsha512 hash + chown root:nginx"]
-        P35F --> P35G["Template → nginx-hermes.conf\n/etc/nginx/conf.d/<fqdn>.conf"]
+        P35D --> P35E["openssl req -x509 -sha256\n→ per-vhost self-signed TLS certs"]
+        P35E --> P35F["Write per-vhost .htpasswd files\nsha512 hash + chown root:nginx"]
+        P35F --> P35G["Template dashboard + WebUI nginx configs\n/etc/nginx/conf.d/<fqdn>.conf"]
         P35G --> P35H["SELinux: setsebool\nhttpd_can_network_connect 1"]
         P35H --> P35I["nginx -t syntax check"]
         P35I --> P35J["systemctl enable --now nginx"]
@@ -110,9 +125,9 @@ flowchart TD
         direction TB
         P50A["Print manual post-install steps:"]
         P50B["1️⃣  sudo -iu hermes hermes auth add openai-codex"]
-        P50C["2️⃣  Restart services after config change:\nsystemctl --user restart hermes-gateway/dashboard"]
-        P50D["3️⃣  Dashboard: loopback check curl 127.0.0.1:8080\nor via nginx HTTPS endpoint"]
-        P50E["4️⃣  Verify nginx: nginx -t && curl -skI https://<fqdn>/"]
+        P50C["2️⃣  Restart services after config change:\nsystemctl --user restart gateway/dashboard/webui"]
+        P50D["3️⃣  Browser UIs: loopback checks\ndashboard :8080, WebUI :8787/health"]
+        P50E["4️⃣  Verify nginx: nginx -t && curl -skI\ndashboard/WebUI FQDNs"]
     end
 
     PHASE_50 --> DONE(["✅ Done — Hermes ready!\nManual Codex OAuth still needed"])
@@ -154,6 +169,7 @@ flowchart LR
         subgraph HERMES_USER["Hermes User (no sudo)"]
             GW["hermes-gateway.service\nsystemd --user"]
             DASH["hermes-dashboard.service\nsystemd --user\n127.0.0.1:8080"]
+            WEBUI["hermes-webui.service\nsystemd --user\n127.0.0.1:8787"]
             CLI["hermes CLI\n~/.hermes/bin/"]
             ANSIBLE["Ansible runtime\n~/ansible/apps/"]
             PW["Playwright + Chromium\n~/.cache/ms-playwright/"]
@@ -161,8 +177,10 @@ flowchart LR
     end
 
     USER -->|"HTTPS :443"| NGINX
-    NGINX -->|"proxy_pass"| DASH
+    NGINX -->|"dashboard vhost proxy_pass"| DASH
+    NGINX -->|"webui vhost proxy_pass"| WEBUI
     DASH <--> GW
+    WEBUI --> CLI
     GW <--> CODEX
     CLI -->|"curl install.sh"| HERMES_INST
     CLI <--> CODEX
@@ -177,10 +195,10 @@ flowchart LR
 
 | # | Phase | Key Actions | Conditional? |
 |---|-------|-------------|:---:|
-| 10 | **Prepare** | DNF packages, create `hermes` user (no wheel), enable linger, .bashrc env | ❌ |
-| 20 | **Install & Configure** | Hermes CLI via upstream `install.sh`, `config set` provider/model | ❌ |
+| 10 | **Prepare** | DNF packages, optional npm build tools, create `hermes` user (no wheel), enable linger, .bashrc env | ❌ |
+| 20 | **Install & Configure** | Hermes CLI via upstream `install.sh`, `config set` provider/model, optional WebUI checkout/env | ❌ |
 | 25 | **Ansible Runtime** | `curl \| sh` → `~/ansible/apps/`, .bashrc integration | ✅ `ansible_enable` |
-| 30 | **Systemd Services** | Template → `hermes-gateway.service` + `hermes-dashboard.service`, enable+start via `--user` | ✅ gateway/dashboard toggles |
-| 35 | **nginx Proxy** | Self-signed TLS, `.htpasswd`, nginx config template, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
+| 30 | **Systemd Services** | Template → `hermes-gateway.service`, `hermes-dashboard.service`, optional `hermes-webui.service`, enable+start via `--user` | ✅ gateway/dashboard/WebUI toggles |
+| 35 | **nginx Proxy** | Per-vhost self-signed TLS, `.htpasswd`, dashboard/WebUI nginx configs, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
 | 40 | **Playwright** | `npm install playwright`, `npx playwright install chromium`, `ldd` check, smoke test | ✅ `hermes_playwright_enabled` |
 | 50 | **Next Steps** | Print manual `hermes auth add openai-codex` instructions | ❌ |

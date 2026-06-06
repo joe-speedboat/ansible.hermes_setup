@@ -282,9 +282,110 @@ curl -fsS http://127.0.0.1:8080 >/dev/null
 
 The dashboard listens on loopback only. Do **not** open `8080/tcp` in firewalld for browser access. Use SSH tunnelling or the nginx reverse proxy pattern below.
 
-## 8. Optional nginx HTTPS + Basic Auth Reverse Proxy
+## 8. Optional Hermes WebUI systemd User Service
 
-The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. For manual setup, install nginx and keep the Hermes dashboard bound to `127.0.0.1`:
+The Ansible role can install and enable the separate Hermes WebUI service when requested:
+
+```yaml
+hermes_webui_enabled: true
+hermes_webui_service_enabled: true
+hermes_webui_service_state: started
+hermes_webui_repo_url: https://github.com/nesquena/hermes-webui.git
+hermes_webui_repo_version: master
+hermes_webui_app_dir: /home/hermes/app/hermes-webui
+hermes_webui_host: 127.0.0.1
+hermes_webui_port: 8787
+hermes_webui_state_dir: /home/hermes/.hermes/webui
+hermes_webui_default_workspace: /home/hermes/work
+hermes_webui_allowed_origins: https://web-hermes.example.ch
+```
+
+Install the WebUI checkout and local state/workspace directories:
+
+```bash
+sudo install -d -o hermes -g hermes -m 0755 /home/hermes/app /home/hermes/.hermes/webui /home/hermes/work
+sudo runuser -u hermes -- git clone https://github.com/nesquena/hermes-webui.git /home/hermes/app/hermes-webui
+```
+
+Create `/home/hermes/app/hermes-webui/.env`. This file contains local service configuration only; do not put secrets into it:
+
+```bash
+sudo tee /home/hermes/app/hermes-webui/.env >/dev/null <<'EOF'
+HERMES_HOME=/home/hermes/.hermes
+HERMES_WEBUI_AGENT_DIR=/home/hermes/.hermes/hermes-agent
+HERMES_WEBUI_PYTHON=/home/hermes/.hermes/hermes-agent/venv/bin/python
+HERMES_WEBUI_HOST=127.0.0.1
+HERMES_WEBUI_PORT=8787
+HERMES_WEBUI_STATE_DIR=/home/hermes/.hermes/webui
+HERMES_WEBUI_DEFAULT_WORKSPACE=/home/hermes/work
+HERMES_WEBUI_ALLOWED_ORIGINS=https://web-hermes.example.ch
+EOF
+sudo chown hermes:hermes /home/hermes/app/hermes-webui/.env
+sudo chmod 0640 /home/hermes/app/hermes-webui/.env
+```
+
+Create `/home/hermes/.config/systemd/user/hermes-webui.service`:
+
+```ini
+[Unit]
+Description=Hermes WebUI
+Documentation=https://github.com/nesquena/hermes-webui/
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/home/hermes/app/hermes-webui
+EnvironmentFile=/home/hermes/app/hermes-webui/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=HERMES_WEBUI_FOREGROUND=1
+ExecStart=/home/hermes/.hermes/hermes-agent/venv/bin/python /home/hermes/app/hermes-webui/bootstrap.py --no-browser --foreground --host 127.0.0.1 8787
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hermes-webui
+
+# Keep the WebUI private on loopback; nginx is the public TLS/auth endpoint.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/hermes /tmp
+
+[Install]
+WantedBy=default.target
+```
+
+Reload, start, and verify:
+
+```bash
+uid=$(id -u hermes)
+sudo runuser -u hermes -- env \
+  XDG_RUNTIME_DIR=/run/user/$uid \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus \
+  systemctl --user daemon-reload
+
+sudo runuser -u hermes -- env \
+  XDG_RUNTIME_DIR=/run/user/$uid \
+  DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus \
+  systemctl --user enable --now hermes-webui.service
+
+for i in {1..30}; do
+  curl -fsS http://127.0.0.1:8787/health >/dev/null && break
+  sleep 2
+done
+curl -fsS http://127.0.0.1:8787/health >/dev/null
+```
+
+The WebUI also listens on loopback only. Expose it with its own DNS vhost, for example `web-hermes.example.ch`, instead of sharing the dashboard vhost.
+
+## 9. Optional nginx HTTPS + Basic Auth Reverse Proxy
+
+The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. For manual setup, install nginx and keep both browser UIs bound to loopback:
 
 ```bash
 sudo dnf install -y nginx openssl
@@ -294,7 +395,12 @@ sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
   -out /etc/pki/tls/hermes/hermes.example.ch_tls.crt \
   -subj '/CN=hermes.example.ch' \
   -addext 'subjectAltName=DNS:hermes.example.ch'
-sudo chmod 0600 /etc/pki/tls/hermes/hermes.example.ch_tls.key
+sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
+  -keyout /etc/pki/tls/hermes/web-hermes.example.ch_tls.key \
+  -out /etc/pki/tls/hermes/web-hermes.example.ch_tls.crt \
+  -subj '/CN=web-hermes.example.ch' \
+  -addext 'subjectAltName=DNS:web-hermes.example.ch'
+sudo chmod 0600 /etc/pki/tls/hermes/hermes.example.ch_tls.key /etc/pki/tls/hermes/web-hermes.example.ch_tls.key
 ```
 
 Create `/etc/nginx/.htpasswd-hermes-hermes.example.ch` with a SHA-512 crypt hash. Use a real password, ideally sourced from a secret manager or Ansible Vault:
@@ -308,9 +414,18 @@ print(f'{user}:{crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))}')
 PY
 sudo chown root:nginx /etc/nginx/.htpasswd-hermes-hermes.example.ch
 sudo chmod 0640 /etc/nginx/.htpasswd-hermes-hermes.example.ch
+
+python3 - <<'PY' | sudo tee /etc/nginx/.htpasswd-hermes-web-hermes.example.ch >/dev/null
+import crypt, getpass
+user = 'chris'
+password = getpass.getpass('WebUI Basic Auth password: ')
+print(f'{user}:{crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))}')
+PY
+sudo chown root:nginx /etc/nginx/.htpasswd-hermes-web-hermes.example.ch
+sudo chmod 0640 /etc/nginx/.htpasswd-hermes-web-hermes.example.ch
 ```
 
-Create `/etc/nginx/conf.d/hermes.conf`:
+Create the dashboard vhost `/etc/nginx/conf.d/hermes.example.ch.conf`:
 
 ```nginx
 server {
@@ -354,6 +469,48 @@ server {
 }
 ```
 
+Create a separate WebUI vhost `/etc/nginx/conf.d/web-hermes.example.ch.conf` when `hermes_webui_enabled: true`. Use a separate FQDN, certificate/key, and htpasswd file:
+
+```nginx
+server {
+    listen 80;
+    server_name web-hermes.example.ch;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name web-hermes.example.ch;
+
+    ssl_certificate /etc/pki/tls/hermes/web-hermes.example.ch_tls.crt;
+    ssl_certificate_key /etc/pki/tls/hermes/web-hermes.example.ch_tls.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 100m;
+
+    auth_basic "web-hermes.example.ch";
+    auth_basic_user_file /etc/nginx/.htpasswd-hermes-web-hermes.example.ch;
+
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host web-hermes.example.ch;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+        proxy_cache off;
+    }
+}
+```
+
 Enable nginx and open HTTPS:
 
 ```bash
@@ -369,11 +526,13 @@ Verify:
 ```bash
 curl -skI https://hermes.example.ch/ | sed -n '1,8p'
 curl -skI -u chris:'<password>' https://hermes.example.ch/ | sed -n '1,8p'
+curl -skI https://web-hermes.example.ch/ | sed -n '1,8p'
+curl -skI -u chris:'<password>' https://web-hermes.example.ch/ | sed -n '1,8p'
 ```
 
-For multiple Hermes users, use one DNS vhost per Linux user and dashboard port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files, private keys, and htpasswd files scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
+For multiple Hermes users, use one DNS vhost per Linux user and browser UI port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files, private keys, and htpasswd files scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
 
-## 9. Pair Messaging Platforms such as Telegram
+## 10. Pair Messaging Platforms such as Telegram
 
 To reconfigure missing/basic Hermes settings quickly:
 
@@ -394,11 +553,12 @@ sudo -iu hermes systemctl --user restart hermes-gateway.service
 sudo -iu hermes systemctl --user status hermes-gateway.service --no-pager
 ```
 
-Restart both role-managed services as the `hermes` user:
+Restart all enabled role-managed services as the `hermes` user:
 
 ```bash
 sudo -iu hermes systemctl --user restart hermes-gateway.service
 sudo -iu hermes systemctl --user restart hermes-dashboard.service
+sudo -iu hermes systemctl --user restart hermes-webui.service
 ```
 
 When a user sends a message to the bot, Hermes creates a pending pairing code. List and approve it:
@@ -416,7 +576,7 @@ sudo -iu hermes hermes gateway stop
 sudo -iu hermes hermes gateway status
 ```
 
-## 10. Playwright Setup
+## 11. Playwright Setup
 
 The Ansible role installs Playwright support by default:
 
@@ -432,6 +592,12 @@ Disable it only when the server must not download browser binaries or will never
 
 ```yaml
 hermes_playwright_enabled: false
+```
+
+Install optional npm native build tools before starting services when the WebUI or dashboard has to compile native modules such as `node-pty`:
+
+```bash
+sudo dnf install -y make gcc gcc-c++
 ```
 
 Install runtime libraries as admin/root:
@@ -476,10 +642,10 @@ Expected output:
 playwright-ok
 ```
 
-## 11. Production Hardening Hints
+## 12. Production Hardening Hints
 
-For production dashboard access, prefer `hermes_nginx_enabled: true`: keep the dashboard loopback-only and expose only nginx HTTPS with Basic Auth. SSH tunnelling is also fine for single-admin maintenance. Do not expose `8080/tcp` directly unless the surrounding network is trusted and separately protected.
+For production browser access, prefer `hermes_nginx_enabled: true`: keep the dashboard and WebUI loopback-only and expose only nginx HTTPS with Basic Auth. SSH tunnelling is also fine for single-admin maintenance. Do not expose `8080/tcp` directly unless the surrounding network is trusted and separately protected.
 
-For multiple operators or customers, use one Linux user and one DNS vhost per Hermes instance. Subfolder deployments are intentionally avoided because Hermes dashboard uses root-relative `/api/...` and WebSocket endpoints.
+For multiple operators or customers, use one Linux user and one DNS vhost per Hermes instance. Subfolder deployments are intentionally avoided because Hermes dashboard and WebUI use root-relative `/api/...` and WebSocket endpoints.
 
 Secrets should never be stored in this repository. Put Hermes provider secrets in the user's Hermes home or auth store, and put nginx Basic Auth passwords in Ansible Vault or another secret manager.
