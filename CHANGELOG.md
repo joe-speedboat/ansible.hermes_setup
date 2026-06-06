@@ -1,6 +1,91 @@
 # Changelog
 
 
+## ansible.hermes_setup v1.2.0 - 2026-06-06
+
+Target branch: `master`
+
+### Highlights
+
+- Adds optional Hermes WebUI installation and management as a dedicated loopback-only systemd user service.
+- Adds a separate nginx HTTPS + Basic Auth vhost for Hermes WebUI, with dashboard/WebUI-specific variable names.
+- Fixes clean Rocky 10 lab convergence when `ansible_enable: true`, `hermes_webui_enabled: true`, and Playwright build tools are enabled.
+- Keeps the Ansible user runtime below `{{ ansible_home }}` and prevents `runuser` from inheriting `/root` as its working directory.
+- Installs npm native build tools before service startup when explicitly enabled, so dashboard/WebUI native modules can build on clean hosts.
+
+### Features
+
+#### Hermes WebUI service
+
+- New opt-in `hermes_webui_enabled` default, disabled by default.
+- New WebUI repository, checkout, bind, state, workspace, and allowed-origin defaults.
+- New `hermes-webui.service` user unit template.
+- Role-managed health check waits for the WebUI `/health` endpoint when enabled.
+
+#### WebUI nginx vhost
+
+- Adds WebUI-specific nginx FQDN, config path, TLS certificate/key, Basic Auth file, Basic Auth realm, and upstream defaults.
+- Renders dashboard and WebUI reverse proxies from the shared nginx template while keeping component-specific variables clear.
+- Documents the requirement for DNS records for every public dashboard/WebUI vhost.
+
+### Fixes
+
+- Adds `chdir: "{{ hermes_home }}"` to Ansible runtime shell tasks so the `ansible-uv` installer does not fail from an inaccessible `/root` working directory.
+- Moves `hermes_playwright_build_tools_packages` installation into phase 10, before services start and before any `npm install` can require native build tooling.
+- Adds `gh` to the Rocky/RHEL base package list for GitHub CLI workflows on installed Hermes hosts.
+- Adjusts the default WebUI vhost naming to `web-{{ hermes_dashboard_nginx_fqdn }}`.
+
+### Documentation
+
+- Updates README variables and examples for Hermes WebUI service and nginx vhost support.
+- Updates the Rocky 10 manual runbook references for the new WebUI endpoint behavior.
+- Updates post-install next steps to mention the generated WebUI vhost.
+
+### Tests and validation
+
+- Extends nginx render and syntax coverage for dashboard plus WebUI vhosts.
+- Extends static tests for WebUI defaults, package ordering, and Ansible installer working directory.
+- Verified before release preparation:
+  - clean Rocky 10.1 lab converge with `ansible_enable: true`, `hermes_webui_enabled: true`, and `hermes_playwright_build_tools_enabled: true`: `ok=106 changed=37 failed=0`
+  - steady-state idempotence pass: `ok=103 changed=0 failed=0`
+  - independent service checks: `hermes-gateway.service`, `hermes-dashboard.service`, and `hermes-webui.service` active
+  - loopback checks: dashboard `HTTP 200`, WebUI health `HTTP 200`
+  - `nginx -t` -> ok
+  - Playwright Chromium smoke test -> `playwright-ok`
+  - `git diff --check` -> ok
+  - `uvx --python 3.12 --from pytest --with pyyaml pytest -q` -> `2 passed`
+  - `ansible-playbook tests/test.yml -i localhost, -c local --syntax-check` with temporary `ANSIBLE_ROLES_PATH` -> ok
+  - `ansible-playbook tests/nginx_render.yml -i localhost, -c local --syntax-check` with temporary `ANSIBLE_ROLES_PATH` -> ok
+  - `ansible-playbook tests/nginx_tasks_syntax.yml -i localhost, -c local --syntax-check` with temporary `ANSIBLE_ROLES_PATH` -> ok
+  - `ansible-playbook tests/nginx_render.yml -i localhost, -c local` with temporary `ANSIBLE_ROLES_PATH` -> assertions passed
+
+### Merged pull requests since v1.1.1
+
+- #22 - Add Hermes WebUI vhost support.
+- #23 - Fix Hermes setup lab converge on Rocky 10.
+
+### Changed files since v1.1.1
+
+- `CHANGELOG.md`
+- `README.md`
+- `defaults/main.yml`
+- `docs/manual-setup-rocky10.md`
+- `tasks/rhelAll-10/10_prepare.yml`
+- `tasks/rhelAll-10/20_install_configure.yml`
+- `tasks/rhelAll-10/25_ansible.yml`
+- `tasks/rhelAll-10/30_services.yml`
+- `tasks/rhelAll-10/35_nginx.yml`
+- `tasks/rhelAll-10/40_playwright.yml`
+- `tasks/rhelAll-10/50_next_steps.yml`
+- `templates/hermes-webui.env.j2`
+- `templates/hermes-webui.service.j2`
+- `templates/nginx-hermes.conf.j2`
+- `tests/nginx_render.yml`
+- `tests/nginx_tasks_syntax.yml`
+- `tests/test_ansible_addon_static.py`
+- `tests/test_prepare_static.py`
+- `vars/main.yml`
+
 ## ansible.hermes_setup v1.1.1 - 2026-06-01
 
 Target branch: `docs/fqdn-scoped-nginx-defaults`
