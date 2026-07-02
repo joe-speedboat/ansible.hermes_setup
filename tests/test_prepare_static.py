@@ -37,3 +37,19 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert 'name: "{{ hermes_base_packages }}"' in prepare_tasks
     assert 'name: "{{ hermes_playwright_build_tools_packages }}"' in prepare_tasks
     assert "hermes_playwright_build_tools_enabled | bool" in prepare_tasks
+    assert "hermes_playwright_build_tools_enabled: true" in defaults
+
+
+def test_nginx_firewall_management_installs_and_starts_firewalld():
+    nginx_tasks = (ROOT / "tasks/rhelAll-10/35_nginx.yml").read_text()
+
+    package_task_index = nginx_tasks.index("Install nginx for Hermes reverse proxy")
+    firewalld_package_index = nginx_tasks.index("- firewalld")
+    start_task_index = nginx_tasks.index("Enable and start firewalld for Hermes nginx firewall management")
+    firewall_cmd_index = nginx_tasks.index("Remove legacy http/https firewalld services for Hermes nginx")
+
+    assert package_task_index < firewalld_package_index < start_task_index < firewall_cmd_index
+    assert "name: firewalld" in nginx_tasks
+    assert "enabled: true" in nginx_tasks
+    assert "state: started" in nginx_tasks
+    assert "hermes_nginx_enable_firewall | bool" in nginx_tasks
