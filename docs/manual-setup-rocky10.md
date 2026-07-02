@@ -21,17 +21,22 @@ Expected: Rocky Linux 10.x.
 
 ## 2. Install Base Packages
 
+Enable EPEL first because some Hermes helper packages, such as `ffmpeg-free` and `ripgrep`, are resolved from the extended package set on Rocky/RHEL 10:
+
 ```bash
+sudo dnf install -y epel-release
 sudo dnf install -y \
   bash \
   ca-certificates \
   curl \
   git \
   gh \
+  ffmpeg-free \
   jq \
   openssl \
   python3 \
   python3-pip \
+  ripgrep \
   tar \
   unzip \
   which \
@@ -388,7 +393,7 @@ The WebUI also listens on loopback only. Expose it with its own DNS vhost, for e
 The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. For manual setup, install nginx and keep both browser UIs bound to loopback:
 
 ```bash
-sudo dnf install -y nginx openssl
+sudo dnf install -y nginx openssl policycoreutils-python-utils firewalld
 sudo mkdir -p /etc/pki/tls/hermes
 sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
   -keyout /etc/pki/tls/hermes/hermes.example.ch_tls.key \
@@ -511,12 +516,15 @@ server {
 }
 ```
 
-Enable nginx and open HTTPS:
+Enable nginx and firewalld, then open HTTPS. Start `firewalld` before running `firewall-cmd`; fresh Rocky 10 minimal cloud images may not include or start it by default.
 
 ```bash
 sudo setsebool -P httpd_can_network_connect 1
 sudo nginx -t
 sudo systemctl enable --now nginx
+sudo systemctl enable --now firewalld
+sudo firewall-cmd --permanent --remove-service=http || true
+sudo firewall-cmd --permanent --remove-service=https || true
 sudo firewall-cmd --permanent --add-port=443/tcp
 sudo firewall-cmd --reload
 ```
@@ -594,7 +602,7 @@ Disable it only when the server must not download browser binaries or will never
 hermes_playwright_enabled: false
 ```
 
-Install optional npm native build tools before starting services when the WebUI or dashboard has to compile native modules such as `node-pty`:
+Install npm native build tools before Playwright/npm work. The role enables this by default because fresh Rocky 10 minimal hosts may need to compile native modules such as `node-pty` with `node-gyp`:
 
 ```bash
 sudo dnf install -y make gcc gcc-c++

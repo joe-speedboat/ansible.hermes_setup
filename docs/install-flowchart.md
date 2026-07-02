@@ -89,14 +89,15 @@ flowchart TD
         P35A -->|no| P35_SKIP(("⏭️"))
         P35A -->|yes| P35B["Validate: dashboard/WebUI FQDNs, loopback,\nBasic Auth user/password"]
         P35B --> P35C["⚠️ Warn if password still 'changeme'"]
-        P35C --> P35D["dnf install nginx openssl"]
+        P35C --> P35D["dnf install nginx openssl\npolicycoreutils-python-utils firewalld"]
         P35D --> P35E["openssl req -x509 -sha256\n→ per-vhost self-signed TLS certs"]
         P35E --> P35F["Write per-vhost .htpasswd files\nsha512 hash + chown root:nginx"]
         P35F --> P35G["Template dashboard + WebUI nginx configs\n/etc/nginx/conf.d/<fqdn>.conf"]
         P35G --> P35H["SELinux: setsebool\nhttpd_can_network_connect 1"]
         P35H --> P35I["nginx -t syntax check"]
         P35I --> P35J["systemctl enable --now nginx"]
-        P35J --> P35K["firewalld: open 443/tcp\n+ firewall-cmd --reload"]
+        P35J --> P35FW["systemctl enable --now firewalld"]
+        P35FW --> P35K["firewalld: open 443/tcp\n+ firewall-cmd --reload"]
     end
 
     PHASE_35 --> PHASE_40

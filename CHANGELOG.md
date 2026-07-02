@@ -1,5 +1,54 @@
 # Changelog
 
+## ansible.hermes_setup v1.2.1 - 2026-07-02
+
+Target branch: `master`
+
+### Highlights
+
+- Fixes fresh Rocky Linux 10 minimal-host convergence for the default nginx/firewalld and Playwright setup.
+- Keeps `hermes_nginx_enable_firewall: true` usable on cloud images that do not preinstall `firewalld`.
+- Makes the default Playwright-enabled install self-contained when npm falls back to native `node-gyp` builds such as `node-pty`.
+
+### Fixes
+
+- Installs `firewalld` with the nginx reverse-proxy prerequisites.
+- Enables and starts `firewalld` before running any `firewall-cmd` tasks.
+- Changes `hermes_playwright_build_tools_enabled` default to `true` so `make`, `gcc`, and `gcc-c++` are present before Playwright/npm native module builds.
+
+### Documentation
+
+- Updates the Rocky 10 manual setup runbook to include `epel-release`, `ffmpeg-free`, `ripgrep`, `firewalld`, `policycoreutils-python-utils`, and default Playwright build tools.
+- Updates the install flowchart so Phase 35 shows `firewalld` installation/start before port management.
+- Confirms README variables already match the v1.2.1 defaults.
+
+### Tests and validation
+
+- Verified before release preparation:
+  - static Python assertions for role defaults and task ordering -> passed
+  - `ansible-playbook tests/nginx_tasks_syntax.yml --syntax-check` -> ok
+  - clean Hetzner Rocky 10.1 lab converge with dashboard and WebUI enabled: `ok=101 changed=3 failed=0` after the fixes
+  - steady-state idempotence pass: `ok=100 changed=0 failed=0`
+  - independent service checks: `nginx`, `firewalld`, `hermes-gateway.service`, `hermes-dashboard.service`, and `hermes-webui.service` active
+  - loopback checks: dashboard `HTTP 200`, WebUI `/health` `HTTP 200`
+  - `nginx -t` -> ok
+  - `firewall-cmd --list-ports` -> `443/tcp`
+  - Playwright Chromium smoke test -> `playwright-ok`
+  - dashboard and WebUI HTTPS vhosts verified with Basic Auth via `curl --resolve`
+
+### Merged pull requests since v1.2.0
+
+- #25 - Fix Rocky 10 nginx firewall prerequisites.
+
+### Changed files since v1.2.0
+
+- `README.md`
+- `CHANGELOG.md`
+- `defaults/main.yml`
+- `docs/install-flowchart.md`
+- `docs/manual-setup-rocky10.md`
+- `tasks/rhelAll-10/35_nginx.yml`
+- `tests/test_prepare_static.py`
 
 ## ansible.hermes_setup v1.2.0 - 2026-06-06
 
