@@ -119,10 +119,11 @@ hermes_playwright_browsers:
   - chromium
 hermes_playwright_ldd_check_enabled: true
 hermes_playwright_smoke_test_enabled: true
-# Optional build tools for npm modules that have to compile from source
-# (for example node-pty on some Node/Rocky combinations). Keep disabled for
-# production unless a lab/provisioning run proves they are needed.
-hermes_playwright_build_tools_enabled: false
+# Build tools for npm modules that may have to compile from source
+# (for example node-pty on some Node/Rocky combinations). Enabled by default
+# because Playwright support is enabled by default and fresh Rocky 10 minimal
+# hosts otherwise cannot converge when npm falls back to node-gyp builds.
+hermes_playwright_build_tools_enabled: true
 hermes_playwright_build_tools_packages:
   - make
   - gcc

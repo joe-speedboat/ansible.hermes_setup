@@ -100,7 +100,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_playwright_browsers`: browser list for `npx playwright install`. Default: `['chromium']`
 - `hermes_playwright_ldd_check_enabled`: run `ldd` against Playwright's Chromium headless shell and fail if direct shared libraries are missing. Default: `true`
 - `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
-- `hermes_playwright_build_tools_enabled`: explicitly install build tools for npm native module rebuilds. Default: `false`
+- `hermes_playwright_build_tools_enabled`: install build tools for npm native module rebuilds used by Playwright/Hermes dependencies such as `node-pty`. Default: `true`
 
 > Override `hermes_dashboard_nginx_basic_auth_password` with Ansible Vault for every deployment that exposes nginx beyond a disposable lab. The default `hermes` / `changeme` pair is only there so the role converges from defaults.
 
