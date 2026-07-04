@@ -87,17 +87,39 @@ flowchart TD
         direction TB
         P35A{"nginx\nenabled?"}
         P35A -->|no| P35_SKIP(("⏭️"))
-        P35A -->|yes| P35B["Validate: dashboard/WebUI FQDNs, loopback,\nBasic Auth user/password"]
-        P35B --> P35C["⚠️ Warn if password still 'changeme'"]
-        P35C --> P35D["dnf install nginx openssl\npolicycoreutils-python-utils firewalld"]
-        P35D --> P35E["openssl req -x509 -sha256\n→ per-vhost self-signed TLS certs"]
-        P35E --> P35F["Write per-vhost .htpasswd files\nsha512 hash + chown root:nginx"]
-        P35F --> P35G["Template dashboard + WebUI nginx configs\n/etc/nginx/conf.d/<fqdn>.conf"]
-        P35G --> P35H["SELinux: setsebool\nhttpd_can_network_connect 1"]
+        P35A -->|yes| P35B["Validate dashboard nginx settings:\nFQDN, loopback host, TLS, Basic Auth"]
+        P35B --> P35B2["Validate WebUI nginx settings when WebUI enabled:\nseparate FQDN, loopback host, TLS, Basic Auth"]
+        P35B2 --> P35C["Warn if dashboard Basic Auth password is still 'changeme'"]
+        P35C --> P35C2["Validate Let's Encrypt settings when enabled:\nemail, combined mode, TLS"]
+        P35C2 --> P35D["dnf install nginx openssl firewalld\npolicycoreutils-python-utils\n+ certbot when Let's Encrypt enabled"]
+        P35D --> P35D2["Ensure TLS directory exists"]
+        P35D2 --> P35D3["Ensure Let's Encrypt webroot exists:\n/var/lib/letsencrypt/.well-known/acme-challenge"]
+        P35D3 --> P35E["Generate dashboard self-signed TLS cert\n+ set key/cert permissions"]
+        P35E --> P35E2["Generate WebUI self-signed TLS cert\n+ set key/cert permissions"]
+        P35E2 --> P35E3["Check existing Let's Encrypt certificate"]
+        P35E3 --> P35F["Write/remove dashboard Basic Auth file"]
+        P35F --> P35F2["Remove legacy /etc/nginx/conf.d/hermes.conf"]
+        P35F2 --> P35G["Template dashboard nginx config\nself-signed or existing Let's Encrypt cert"]
+        P35G --> P35G2["Write/remove WebUI Basic Auth file"]
+        P35G2 --> P35G3["Template WebUI nginx config\nself-signed or existing Let's Encrypt cert"]
+        P35G3 --> P35H["SELinux: setsebool httpd_can_network_connect 1"]
         P35H --> P35I["nginx -t syntax check"]
-        P35I --> P35J["systemctl enable --now nginx"]
-        P35J --> P35FW["systemctl enable --now firewalld"]
-        P35FW --> P35K["firewalld: open 443/tcp\n+ firewall-cmd --reload"]
+        P35I --> P35J["Enable/start nginx"]
+        P35J --> P35FW["Enable/start firewalld when managed"]
+        P35FW --> P35K["Build effective firewall ports:\n443/tcp + 80/tcp when Let's Encrypt enabled"]
+        P35K --> P35K2["Remove legacy http/https firewalld services"]
+        P35K2 --> P35K3["Open configured firewalld ports"]
+        P35K3 --> P35K4["firewall-cmd --reload"]
+        P35K4 --> P35L{"Let's Encrypt\nenabled?"}
+        P35L -->|yes| P35M["Install renewal deploy hook directory\n+ reload-nginx.sh"]
+        P35M --> P35N["Reload nginx so ACME challenge config is active"]
+        P35N --> P35O["certbot certonly --webroot\ncombined dashboard + WebUI certificate"]
+        P35O --> P35P["Check certificate after request"]
+        P35P --> P35Q["Re-render dashboard nginx config\nwith /etc/letsencrypt/live/<cert>/fullchain.pem"]
+        P35Q --> P35R["Re-render WebUI nginx config\nwith /etc/letsencrypt/live/<cert>/fullchain.pem"]
+        P35R --> P35S["nginx -t after certificate switch"]
+        P35S --> P35T["Enable/start certbot-renew.timer when available"]
+        P35L -->|no| P35T
     end
 
     PHASE_35 --> PHASE_40
@@ -163,8 +185,9 @@ flowchart LR
 
     subgraph HOST["Rocky Linux 10 Host"]
         subgraph SYSTEM["System Services (root)"]
-            NGINX["nginx\nHTTPS :443\nTLS + Basic Auth"]
-            FIREWALL["firewalld\n443/tcp open"]
+            NGINX["nginx\nHTTPS :443\nTLS + Basic Auth\nACME HTTP-01 on :80 when enabled"]
+            CERTBOT["certbot\ncombined dashboard/WebUI cert\nrenew timer + nginx deploy hook"]
+            FIREWALL["firewalld\n443/tcp open\n80/tcp when Let's Encrypt enabled"]
         end
 
         subgraph HERMES_USER["Hermes User (no sudo)"]
@@ -178,6 +201,8 @@ flowchart LR
     end
 
     USER -->|"HTTPS :443"| NGINX
+    USER -->|"HTTP-01 :80\n/.well-known/acme-challenge/"| NGINX
+    CERTBOT -->|"writes/renews cert"| NGINX
     NGINX -->|"dashboard vhost proxy_pass"| DASH
     NGINX -->|"webui vhost proxy_pass"| WEBUI
     DASH <--> GW
@@ -200,6 +225,6 @@ flowchart LR
 | 20 | **Install & Configure** | Hermes CLI via upstream `install.sh`, `config set` provider/model, optional WebUI checkout/env | ❌ |
 | 25 | **Ansible Runtime** | `curl \| sh` → `~/ansible/apps/`, .bashrc integration | ✅ `ansible_enable` |
 | 30 | **Systemd Services** | Template → `hermes-gateway.service`, `hermes-dashboard.service`, optional `hermes-webui.service`, enable+start via `--user` | ✅ gateway/dashboard/WebUI toggles |
-| 35 | **nginx Proxy** | Per-vhost self-signed TLS, `.htpasswd`, dashboard/WebUI nginx configs, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
+| 35 | **nginx Proxy** | Bootstrap self-signed TLS, optional combined Let's Encrypt cert, `.htpasswd`, dashboard/WebUI nginx configs, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
 | 40 | **Playwright** | `npm install playwright`, `npx playwright install chromium`, `ldd` check, smoke test | ✅ `hermes_playwright_enabled` |
 | 50 | **Next Steps** | Print manual `hermes auth add openai-codex` instructions | ❌ |

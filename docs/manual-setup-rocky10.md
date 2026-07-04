@@ -390,10 +390,17 @@ The WebUI also listens on loopback only. Expose it with its own DNS vhost, for e
 
 ## 9. Optional nginx HTTPS + Basic Auth Reverse Proxy
 
-The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to have the role request one combined Let's Encrypt certificate for the enabled nginx vhosts. For manual setup, install nginx and keep both browser UIs bound to loopback:
+The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to have the role request one combined Let's Encrypt certificate for the enabled nginx vhosts. For manual setup, install nginx and keep both browser UIs bound to loopback.
+
+Install the reverse-proxy packages:
 
 ```bash
 sudo dnf install -y nginx openssl policycoreutils-python-utils firewalld certbot
+```
+
+Create bootstrap self-signed certificates. These let nginx start before any public Let's Encrypt certificate exists, and they remain useful for offline labs:
+
+```bash
 sudo mkdir -p /etc/pki/tls/hermes
 sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
   -keyout /etc/pki/tls/hermes/hermes.example.ch_tls.key \
@@ -436,6 +443,13 @@ Create the dashboard vhost `/etc/nginx/conf.d/hermes.example.ch.conf`:
 server {
     listen 80;
     server_name hermes.example.ch;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/letsencrypt;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+
     return 301 https://$host$request_uri;
 }
 
@@ -480,6 +494,13 @@ Create a separate WebUI vhost `/etc/nginx/conf.d/web-hermes.example.ch.conf` whe
 server {
     listen 80;
     server_name web-hermes.example.ch;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/letsencrypt;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+
     return 301 https://$host$request_uri;
 }
 
@@ -516,27 +537,122 @@ server {
 }
 ```
 
-Enable nginx and firewalld, then open HTTPS. Start `firewalld` before running `firewall-cmd`; fresh Rocky 10 minimal cloud images may not include or start it by default.
+Enable nginx and firewalld, then open HTTPS. If you plan to request Let's Encrypt certificates, open HTTP as well because HTTP-01 validation must reach `/.well-known/acme-challenge/` over port 80. Start `firewalld` before running `firewall-cmd`; fresh Rocky 10 minimal cloud images may not include or start it by default.
 
 ```bash
 sudo setsebool -P httpd_can_network_connect 1
+sudo mkdir -p /var/lib/letsencrypt/.well-known/acme-challenge
 sudo nginx -t
 sudo systemctl enable --now nginx
 sudo systemctl enable --now firewalld
 sudo firewall-cmd --permanent --remove-service=http || true
 sudo firewall-cmd --permanent --remove-service=https || true
 sudo firewall-cmd --permanent --add-port=443/tcp
+sudo firewall-cmd --permanent --add-port=80/tcp
 sudo firewall-cmd --reload
+```
+
+For public DNS names, verify that HTTP-01 challenge files bypass Basic Auth and redirects before asking Let's Encrypt for a certificate:
+
+```bash
+printf acme-ok | sudo tee /var/lib/letsencrypt/.well-known/acme-challenge/hermes-test >/dev/null
+curl -fsS http://hermes.example.ch/.well-known/acme-challenge/hermes-test
+curl -fsS http://web-hermes.example.ch/.well-known/acme-challenge/hermes-test
+```
+
+Request one combined Let's Encrypt certificate for both vhosts:
+
+```bash
+sudo certbot certonly \
+  --webroot \
+  --webroot-path /var/lib/letsencrypt \
+  --non-interactive \
+  --agree-tos \
+  --email hermes@web-hermes.example.ch \
+  --cert-name hermes.example.ch \
+  -d hermes.example.ch \
+  -d web-hermes.example.ch
+```
+
+After Certbot succeeds, replace both vhost TLS paths with the live certificate paths and reload nginx:
+
+```nginx
+ssl_certificate /etc/letsencrypt/live/hermes.example.ch/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/hermes.example.ch/privkey.pem;
+```
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Install a renewal deploy hook and enable the renewal timer so nginx reloads after future renewals:
+
+```bash
+sudo install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
+cat <<'EOF' | sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh >/dev/null
+#!/bin/sh
+systemctl reload nginx || systemctl restart nginx
+EOF
+sudo chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+sudo systemctl enable --now certbot-renew.timer
 ```
 
 Verify:
 
 ```bash
+sudo nginx -t
+sudo certbot certificates
+echo | openssl s_client -connect hermes.example.ch:443 -servername hermes.example.ch 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName
+echo | openssl s_client -connect web-hermes.example.ch:443 -servername web-hermes.example.ch 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName
 curl -skI https://hermes.example.ch/ | sed -n '1,8p'
 curl -skI -u chris:'<password>' https://hermes.example.ch/ | sed -n '1,8p'
 curl -skI https://web-hermes.example.ch/ | sed -n '1,8p'
 curl -skI -u chris:'<password>' https://web-hermes.example.ch/ | sed -n '1,8p'
 ```
+
+Manual mapping to the role's Phase 35 nginx tasks:
+
+| Ansible task | Manual setup equivalent |
+|---|---|
+| Validate Hermes nginx reverse proxy settings | Confirm dashboard FQDN, loopback bind, TLS, and Basic Auth values before writing vhosts. |
+| Validate Hermes WebUI nginx reverse proxy settings | Confirm WebUI uses a separate FQDN and loopback bind when WebUI is enabled. |
+| Warn when Hermes nginx Basic Auth uses the default password | Use a real Basic Auth password from a secret manager or Ansible Vault, never `changeme`. |
+| Validate Hermes nginx Let's Encrypt settings | Confirm ACME email, TLS enabled, public DNS, and combined certificate intent before running Certbot. |
+| Install nginx for Hermes reverse proxy | `dnf install nginx openssl policycoreutils-python-utils firewalld certbot`. |
+| Ensure Hermes nginx TLS directory exists | `mkdir -p /etc/pki/tls/hermes`. |
+| Ensure Hermes nginx Let's Encrypt webroot exists | `mkdir -p /var/lib/letsencrypt/.well-known/acme-challenge`. |
+| Generate self-signed Hermes nginx TLS certificate | `openssl req -x509 ... hermes.example.ch ...`. |
+| Set Hermes nginx TLS private key permissions | `chmod 0600` on the dashboard private key. |
+| Set Hermes nginx TLS certificate permissions | Keep the dashboard certificate world-readable, typically `0644`. |
+| Generate self-signed Hermes WebUI nginx TLS certificate | `openssl req -x509 ... web-hermes.example.ch ...`. |
+| Set Hermes WebUI nginx TLS private key permissions | `chmod 0600` on the WebUI private key. |
+| Set Hermes WebUI nginx TLS certificate permissions | Keep the WebUI certificate world-readable, typically `0644`. |
+| Check existing Hermes Let's Encrypt certificate | Check `/etc/letsencrypt/live/<cert-name>/fullchain.pem` before deciding which TLS paths to use. |
+| Write Hermes nginx Basic Auth password file | Create `/etc/nginx/.htpasswd-hermes-hermes.example.ch` with a SHA-512 crypt hash. |
+| Remove Hermes nginx Basic Auth password file when disabled | Delete the dashboard htpasswd file if Basic Auth is intentionally disabled. |
+| Remove legacy Hermes nginx reverse proxy config path | Remove stale `/etc/nginx/conf.d/hermes.conf` when using FQDN-scoped config paths. |
+| Write Hermes nginx reverse proxy config | Create `/etc/nginx/conf.d/hermes.example.ch.conf`. |
+| Write Hermes WebUI nginx Basic Auth password file | Create `/etc/nginx/.htpasswd-hermes-web-hermes.example.ch` with a SHA-512 crypt hash. |
+| Remove Hermes WebUI nginx Basic Auth password file when disabled | Delete the WebUI htpasswd file if Basic Auth is intentionally disabled. |
+| Write Hermes WebUI nginx reverse proxy config | Create `/etc/nginx/conf.d/web-hermes.example.ch.conf`. |
+| Allow nginx to proxy Hermes dashboard under SELinux | `setsebool -P httpd_can_network_connect 1`. |
+| Validate nginx configuration | `nginx -t` before starting/reloading nginx. |
+| Enable and start nginx | `systemctl enable --now nginx`. |
+| Enable and start firewalld for Hermes nginx firewall management | `systemctl enable --now firewalld`. |
+| Build effective Hermes nginx firewall port list | Include `443/tcp`, plus `80/tcp` when Let's Encrypt is used. |
+| Remove legacy http/https firewalld services for Hermes nginx | `firewall-cmd --permanent --remove-service=http/https || true`. |
+| Open configured ports in firewalld for Hermes nginx | `firewall-cmd --permanent --add-port=443/tcp` and, for ACME, `80/tcp`. |
+| Reload firewalld after Hermes nginx service changes | `firewall-cmd --reload`. |
+| Install Let's Encrypt nginx deploy hook directory | `install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy`. |
+| Install Let's Encrypt nginx deploy hook | Write `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`. |
+| Apply Hermes nginx ACME challenge config before Let's Encrypt request | Reload nginx before Certbot so the challenge location is active. |
+| Request combined Let's Encrypt certificate for Hermes nginx vhosts | `certbot certonly --webroot ... -d hermes.example.ch -d web-hermes.example.ch`. |
+| Check Hermes Let's Encrypt certificate after request | Verify `/etc/letsencrypt/live/<cert-name>/fullchain.pem` exists. |
+| Re-render Hermes nginx reverse proxy config with Let's Encrypt certificate | Replace dashboard vhost TLS paths with `/etc/letsencrypt/live/<cert-name>/fullchain.pem` and `privkey.pem`. |
+| Re-render Hermes WebUI nginx reverse proxy config with Let's Encrypt certificate | Replace WebUI vhost TLS paths with the same combined certificate paths. |
+| Validate nginx configuration after Let's Encrypt certificate switch | `nginx -t` after changing certificate paths. |
+| Enable certbot renewal timer when available | `systemctl enable --now certbot-renew.timer`. |
 
 For multiple Hermes users, use one DNS vhost per Linux user and browser UI port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files, private keys, and htpasswd files scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
 
