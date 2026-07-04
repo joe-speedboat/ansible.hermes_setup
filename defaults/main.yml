@@ -85,6 +85,8 @@ hermes_nginx_tls_dir: /etc/pki/tls/hermes
 hermes_dashboard_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.crt"
 hermes_dashboard_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.key"
 hermes_nginx_generate_self_signed_cert: true
+hermes_nginx_letsencrypt_enabled: false
+hermes_nginx_letsencrypt_email: "{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}"
 
 hermes_dashboard_nginx_basic_auth_enabled: true
 hermes_dashboard_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}

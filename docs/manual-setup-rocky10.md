@@ -390,10 +390,10 @@ The WebUI also listens on loopback only. Expose it with its own DNS vhost, for e
 
 ## 9. Optional nginx HTTPS + Basic Auth Reverse Proxy
 
-The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. For manual setup, install nginx and keep both browser UIs bound to loopback:
+The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to have the role request one combined Let's Encrypt certificate for the enabled nginx vhosts. For manual setup, install nginx and keep both browser UIs bound to loopback:
 
 ```bash
-sudo dnf install -y nginx openssl policycoreutils-python-utils firewalld
+sudo dnf install -y nginx openssl policycoreutils-python-utils firewalld certbot
 sudo mkdir -p /etc/pki/tls/hermes
 sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
   -keyout /etc/pki/tls/hermes/hermes.example.ch_tls.key \

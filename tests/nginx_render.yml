@@ -5,6 +5,8 @@
   vars:
     hermes_dashboard_nginx_fqdn: chris-hermes.example.ch
     hermes_nginx_tls_enabled: true
+    hermes_nginx_letsencrypt_enabled: false
+    hermes_nginx_letsencrypt_webroot: /var/lib/letsencrypt
     hermes_dashboard_nginx_tls_cert: /etc/pki/tls/hermes-chris/tls.crt
     hermes_dashboard_nginx_tls_key: /etc/pki/tls/hermes-chris/tls.key
     hermes_nginx_client_max_body_size: 100m
@@ -45,6 +47,7 @@
           - "'proxy_set_header Upgrade $http_upgrade;' in rendered_nginx_text"
           - "'proxy_set_header Connection $connection_upgrade;' in rendered_nginx_text"
           - "'map $http_upgrade $connection_upgrade' in rendered_nginx_text"
+          - "'/.well-known/acme-challenge/' not in rendered_nginx_text"
       vars:
         rendered_nginx_text: "{{ rendered_nginx.content | b64decode }}"
 

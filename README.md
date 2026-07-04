@@ -79,6 +79,8 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_nginx_tls_cert`: certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.crt`
 - `hermes_dashboard_nginx_tls_key`: private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.key`
 - `hermes_nginx_generate_self_signed_cert`: generate a self-signed cert when no external cert is provided. Default: `true`
+- `hermes_nginx_letsencrypt_enabled`: request and use a combined Let's Encrypt certificate for the enabled nginx vhosts. Default: `false`
+- `hermes_nginx_letsencrypt_email`: ACME registration email. Default: `{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}`
 - `hermes_dashboard_nginx_basic_auth_enabled`: enable nginx Basic Auth. Default: `true`
 - `hermes_dashboard_nginx_basic_auth_file`: htpasswd file path. Default: `/etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}`
 - `hermes_dashboard_nginx_basic_auth_realm`: Basic Auth realm shown by browsers. Default: `{{ hermes_dashboard_nginx_fqdn }}`
@@ -150,6 +152,8 @@ Use two DNS names for one Hermes instance when both browser interfaces are enabl
         hermes_webui_port: 8787
 
         hermes_nginx_enabled: true
+        hermes_nginx_letsencrypt_enabled: true
+        hermes_nginx_letsencrypt_email: chris@example.com
         # Built-in Hermes dashboard:
         hermes_dashboard_nginx_fqdn: hermes1-adm.example.ch
         # Hermes WebUI:
@@ -211,6 +215,8 @@ Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes 
 Hermes dashboard and Hermes WebUI use root-relative frontend assets, REST API routes under `/api/...`, and WebSocket endpoints. DNS vhosts keep those paths unchanged per interface and per instance. Subfolder deployments would require fragile path rewriting and are not recommended.
 
 For the built-in dashboard, the nginx template forwards `Host: 127.0.0.1:<port>` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. For Hermes WebUI, the template preserves the browser-visible `Host` and `X-Forwarded-*` headers and configures `HERMES_WEBUI_ALLOWED_ORIGINS` for the WebUI service. Basic Auth credentials are not forwarded to either backend.
+
+When `hermes_nginx_letsencrypt_enabled: true`, the role keeps self-signed certificates as the bootstrap fallback, serves HTTP-01 challenges from `/.well-known/acme-challenge/`, requests one combined Let's Encrypt certificate for the dashboard FQDN plus the WebUI FQDN when WebUI is enabled, and re-renders both nginx vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem` after issuance. Port `80/tcp` must be reachable from the Internet for HTTP-01 validation; when `hermes_nginx_enable_firewall: true`, the role adds it automatically.
 
 ## After the Role Run
 

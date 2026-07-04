@@ -44,13 +44,27 @@
     - hermes_dashboard_nginx_basic_auth_enabled | bool
     - hermes_dashboard_nginx_basic_auth_password == 'changeme'
 
+- name: Validate Hermes nginx Let's Encrypt settings
+  ansible.builtin.assert:
+    that:
+      - hermes_nginx_letsencrypt_email | length > 0
+      - hermes_nginx_letsencrypt_mode == 'combined'
+      - hermes_nginx_tls_enabled | bool
+    fail_msg: >-
+      hermes_nginx_letsencrypt_enabled requires a non-empty
+      hermes_nginx_letsencrypt_email, TLS enabled, and the internal combined
+      certificate mode.
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+
 - name: Install nginx for Hermes reverse proxy
   ansible.builtin.dnf:
-    name:
-      - nginx
-      - openssl
-      - policycoreutils-python-utils
-      - firewalld
+    name: >-
+      {{
+        ['nginx', 'openssl', 'policycoreutils-python-utils', 'firewalld']
+        + ((hermes_nginx_letsencrypt_enabled | bool) | ternary(['certbot'], []))
+      }}
     state: present
   when: hermes_nginx_enabled | bool
 
@@ -64,6 +78,17 @@
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_tls_enabled | bool
+
+- name: Ensure Hermes nginx Let's Encrypt webroot exists
+  ansible.builtin.file:
+    path: "{{ hermes_nginx_letsencrypt_webroot }}/.well-known/acme-challenge"
+    state: directory
+    owner: root
+    group: nginx
+    mode: "0755"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
 
 - name: Generate self-signed Hermes nginx TLS certificate
   ansible.builtin.command:
@@ -110,7 +135,6 @@
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_tls_enabled | bool
-
 
 - name: Generate self-signed Hermes WebUI nginx TLS certificate
   ansible.builtin.command:
@@ -161,6 +185,14 @@
     - hermes_webui_enabled | bool
     - hermes_nginx_tls_enabled | bool
 
+- name: Check existing Hermes Let's Encrypt certificate
+  ansible.builtin.stat:
+    path: "{{ hermes_nginx_letsencrypt_fullchain_path }}"
+  register: hermes_nginx_letsencrypt_cert_stat
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+
 - name: Write Hermes nginx Basic Auth password file
   ansible.builtin.copy:
     dest: "{{ hermes_dashboard_nginx_basic_auth_file }}"
@@ -200,9 +232,23 @@
     owner: root
     group: root
     mode: "0644"
+  vars:
+    hermes_nginx_vhost_tls_cert: >-
+      {{
+        (
+          hermes_nginx_letsencrypt_enabled | bool
+          and hermes_nginx_letsencrypt_cert_stat.stat.exists | default(false)
+        ) | ternary(hermes_nginx_letsencrypt_fullchain_path, hermes_dashboard_nginx_tls_cert)
+      }}
+    hermes_nginx_vhost_tls_key: >-
+      {{
+        (
+          hermes_nginx_letsencrypt_enabled | bool
+          and hermes_nginx_letsencrypt_cert_stat.stat.exists | default(false)
+        ) | ternary(hermes_nginx_letsencrypt_privkey_path, hermes_dashboard_nginx_tls_key)
+      }}
   notify: restart nginx
   when: hermes_nginx_enabled | bool
-
 
 - name: Write Hermes WebUI nginx Basic Auth password file
   ansible.builtin.copy:
@@ -239,8 +285,20 @@
   vars:
     hermes_nginx_vhost_fqdn: "{{ hermes_webui_nginx_fqdn }}"
     hermes_nginx_vhost_port: "{{ hermes_webui_port }}"
-    hermes_nginx_vhost_tls_cert: "{{ hermes_webui_nginx_tls_cert }}"
-    hermes_nginx_vhost_tls_key: "{{ hermes_webui_nginx_tls_key }}"
+    hermes_nginx_vhost_tls_cert: >-
+      {{
+        (
+          hermes_nginx_letsencrypt_enabled | bool
+          and hermes_nginx_letsencrypt_cert_stat.stat.exists | default(false)
+        ) | ternary(hermes_nginx_letsencrypt_fullchain_path, hermes_webui_nginx_tls_cert)
+      }}
+    hermes_nginx_vhost_tls_key: >-
+      {{
+        (
+          hermes_nginx_letsencrypt_enabled | bool
+          and hermes_nginx_letsencrypt_cert_stat.stat.exists | default(false)
+        ) | ternary(hermes_nginx_letsencrypt_privkey_path, hermes_webui_nginx_tls_key)
+      }}
     hermes_nginx_vhost_basic_auth_enabled: "{{ hermes_webui_nginx_basic_auth_enabled }}"
     hermes_nginx_vhost_basic_auth_file: "{{ hermes_webui_nginx_basic_auth_file }}"
     hermes_nginx_vhost_basic_auth_realm: "{{ hermes_webui_nginx_basic_auth_realm }}"
@@ -279,6 +337,19 @@
     - hermes_nginx_enabled | bool
     - hermes_nginx_enable_firewall | bool
 
+- name: Build effective Hermes nginx firewall port list
+  ansible.builtin.set_fact:
+    hermes_nginx_effective_firewalld_open_ports: >-
+      {{
+        (
+          firewalld_open_ports
+          + ((hermes_nginx_letsencrypt_enabled | bool) | ternary(['80/tcp'], []))
+        ) | unique | list
+      }}
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_enable_firewall | bool
+
 - name: Remove legacy http/https firewalld services for Hermes nginx
   ansible.builtin.command:
     argv:
@@ -305,7 +376,7 @@
       - firewall-cmd
       - --permanent
       - "--add-port={{ item }}"
-  loop: "{{ firewalld_open_ports }}"
+  loop: "{{ hermes_nginx_effective_firewalld_open_ports | default(firewalld_open_ports) }}"
   register: hermes_nginx_firewalld_result
   changed_when:
     - "'success' in hermes_nginx_firewalld_result.stdout"
@@ -316,7 +387,7 @@
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_enable_firewall | bool
-    - firewalld_open_ports | length > 0
+    - hermes_nginx_effective_firewalld_open_ports | default(firewalld_open_ports) | length > 0
 
 - name: Reload firewalld after Hermes nginx service changes
   ansible.builtin.command:
@@ -326,5 +397,125 @@
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_enable_firewall | bool
-    - firewalld_open_ports | length > 0
+    - hermes_nginx_effective_firewalld_open_ports | default(firewalld_open_ports) | length > 0
+
+- name: Install Let's Encrypt nginx deploy hook directory
+  ansible.builtin.file:
+    path: /etc/letsencrypt/renewal-hooks/deploy
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+
+- name: Install Let's Encrypt nginx deploy hook
+  ansible.builtin.copy:
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+    owner: root
+    group: root
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      systemctl reload nginx || systemctl restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+
+- name: Apply Hermes nginx ACME challenge config before Let's Encrypt request
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  changed_when: false
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+
+- name: Request combined Let's Encrypt certificate for Hermes nginx vhosts
+  ansible.builtin.command: >-
+    certbot certonly
+    --webroot
+    --webroot-path {{ hermes_nginx_letsencrypt_webroot | quote }}
+    --non-interactive
+    --agree-tos
+    --email {{ hermes_nginx_letsencrypt_email | quote }}
+    --cert-name {{ hermes_nginx_letsencrypt_cert_name | quote }}
+    -d {{ hermes_dashboard_nginx_fqdn | quote }}
+    {{ (hermes_webui_enabled | bool) | ternary('-d ' + (hermes_webui_nginx_fqdn | quote), '') }}
+    {{ (hermes_nginx_letsencrypt_staging | bool) | ternary('--staging', '') }}
+  register: hermes_nginx_letsencrypt_result
+  changed_when: >-
+    'Successfully received certificate' in hermes_nginx_letsencrypt_result.stdout
+    or 'Congratulations!' in hermes_nginx_letsencrypt_result.stdout
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+
+- name: Check Hermes Let's Encrypt certificate after request
+  ansible.builtin.stat:
+    path: "{{ hermes_nginx_letsencrypt_fullchain_path }}"
+  register: hermes_nginx_letsencrypt_cert_stat_after_request
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+
+- name: Re-render Hermes nginx reverse proxy config with Let's Encrypt certificate
+  ansible.builtin.template:
+    src: nginx-hermes.conf.j2
+    dest: "{{ hermes_dashboard_nginx_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    hermes_nginx_vhost_tls_cert: "{{ hermes_nginx_letsencrypt_fullchain_path }}"
+    hermes_nginx_vhost_tls_key: "{{ hermes_nginx_letsencrypt_privkey_path }}"
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+    - hermes_nginx_letsencrypt_cert_stat_after_request.stat.exists | default(false)
+
+- name: Re-render Hermes WebUI nginx reverse proxy config with Let's Encrypt certificate
+  ansible.builtin.template:
+    src: nginx-hermes.conf.j2
+    dest: "{{ hermes_webui_nginx_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    hermes_nginx_vhost_fqdn: "{{ hermes_webui_nginx_fqdn }}"
+    hermes_nginx_vhost_port: "{{ hermes_webui_port }}"
+    hermes_nginx_vhost_tls_cert: "{{ hermes_nginx_letsencrypt_fullchain_path }}"
+    hermes_nginx_vhost_tls_key: "{{ hermes_nginx_letsencrypt_privkey_path }}"
+    hermes_nginx_vhost_basic_auth_enabled: "{{ hermes_webui_nginx_basic_auth_enabled }}"
+    hermes_nginx_vhost_basic_auth_file: "{{ hermes_webui_nginx_basic_auth_file }}"
+    hermes_nginx_vhost_basic_auth_realm: "{{ hermes_webui_nginx_basic_auth_realm }}"
+    hermes_nginx_vhost_preserve_public_host: true
+  notify: restart nginx
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_webui_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+    - hermes_nginx_letsencrypt_cert_stat_after_request.stat.exists | default(false)
+
+- name: Validate nginx configuration after Let's Encrypt certificate switch
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
+    - hermes_nginx_letsencrypt_cert_stat_after_request.stat.exists | default(false)
+
+- name: Enable certbot renewal timer when available
+  ansible.builtin.systemd:
+    name: certbot-renew.timer
+    enabled: true
+    state: started
+  failed_when: false
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_letsencrypt_enabled | bool
 ...
