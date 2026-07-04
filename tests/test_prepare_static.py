@@ -44,7 +44,7 @@ def test_nginx_firewall_management_installs_and_starts_firewalld():
     nginx_tasks = (ROOT / "tasks/rhelAll-10/35_nginx.yml").read_text()
 
     package_task_index = nginx_tasks.index("Install nginx for Hermes reverse proxy")
-    firewalld_package_index = nginx_tasks.index("- firewalld")
+    firewalld_package_index = nginx_tasks.index("'firewalld'")
     start_task_index = nginx_tasks.index("Enable and start firewalld for Hermes nginx firewall management")
     firewall_cmd_index = nginx_tasks.index("Remove legacy http/https firewalld services for Hermes nginx")
 
