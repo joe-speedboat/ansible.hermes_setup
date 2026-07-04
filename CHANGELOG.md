@@ -2,18 +2,32 @@
 
 ## Unreleased
 
-### Features
+No unreleased changes yet.
+
+## ansible.hermes_setup v1.3.0 - 2026-07-04
+
+Target branch: `feature/letsencrypt-nginx-certs`
+
+### Highlights
 
 - Adds optional nginx Let's Encrypt support controlled by `hermes_nginx_letsencrypt_enabled`, disabled by default.
+- Requests one combined Let's Encrypt certificate for the dashboard vhost plus the WebUI vhost when WebUI is enabled.
+- Keeps self-signed certificates as bootstrap fallback, then re-renders both nginx vhosts to use the live Let's Encrypt certificate after issuance.
+- Documents the real Hetzner + LuaDNS lab workflow for DNS-before-ACME ordering, Basic Auth verification, certificate SAN checks, and final idempotency.
+
+### Features
+
 - Adds `hermes_nginx_letsencrypt_email` with the requested default `{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}`.
 - Keeps `hermes_nginx_letsencrypt_staging`, `hermes_nginx_letsencrypt_mode`, webroot, and live certificate paths as internal role vars.
 - Uses Certbot webroot HTTP-01 validation, opens `80/tcp` when nginx firewall management is enabled, and serves `/.well-known/acme-challenge/` without Basic Auth.
-- Requests one combined certificate for the dashboard vhost plus the WebUI vhost when WebUI is enabled, then re-renders both vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem`.
+- Re-renders dashboard and WebUI vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem` after issuance.
 - Installs a certbot deploy hook that reloads nginx after renewals and enables `certbot-renew.timer` when available.
 
 ### Documentation
 
 - Documents the new defaults and public-DNS usage in `README.md`.
+- Links the README and manual setup runbook to the Hetzner/LuaDNS/Let's Encrypt lab checklist.
+- Adds `docs/hetzner-lab-letsencrypt.md` with the tested cloud-lab workflow, DNS checks, prechecks, public HTTPS checks, and idempotency expectations.
 - Updates the Rocky 10 manual setup runbook with the Certbot dependency and role behavior.
 
 ### Tests and validation
@@ -33,6 +47,29 @@
   - `certbot-renew.timer` -> enabled and active
   - public HTTPS GET with Basic Auth returned `HTTP 200` for both dashboard and WebUI
   - steady-state idempotence pass -> `changed=0 failed=0`
+- Re-verified on a fresh Hetzner Rocky Linux 10.1 lab with `dashboard.lab.bitbull.ch` and `webui.lab.bitbull.ch`:
+  - LuaDNS records created and public resolvers returned the VM IP for both FQDNs
+  - clean converge: `ok=119 changed=45 failed=0`
+  - final idempotency pass: `ok=116 changed=0 failed=0`
+  - `nginx`, `firewalld`, `certbot-renew.timer`, `hermes-gateway.service`, `hermes-dashboard.service`, and `hermes-webui.service` active
+  - Let's Encrypt certificate issuer `C=US, O=Let's Encrypt, CN=YE2`
+  - certificate SANs include `DNS:dashboard.lab.bitbull.ch` and `DNS:webui.lab.bitbull.ch`
+  - public HTTPS without Basic Auth returned `HTTP 401`; with Basic Auth returned `HTTP 200`; TLS verification result `0`
+  - Playwright Chromium smoke test returned `playwright-ok`
+
+### Changed files since v1.2.1
+
+- `CHANGELOG.md`
+- `README.md`
+- `docs/hetzner-lab-letsencrypt.md`
+- `docs/install-flowchart.md`
+- `docs/manual-setup-rocky10.md`
+- `tasks/rhelAll-10/35_nginx.yml`
+- `templates/nginx-hermes.conf.j2`
+- `tests/nginx_render.yml`
+- `tests/nginx_tasks_syntax.yml`
+- `tests/test_prepare_static.py`
+- `vars/main.yml`
 
 ## ansible.hermes_setup v1.2.1 - 2026-07-02
 

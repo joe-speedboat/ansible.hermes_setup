@@ -218,6 +218,8 @@ For the built-in dashboard, the nginx template forwards `Host: 127.0.0.1:<port>`
 
 When `hermes_nginx_letsencrypt_enabled: true`, the role keeps self-signed certificates as the bootstrap fallback, serves HTTP-01 challenges from `/.well-known/acme-challenge/`, requests one combined Let's Encrypt certificate for the dashboard FQDN plus the WebUI FQDN when WebUI is enabled, and re-renders both nginx vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem` after issuance. Port `80/tcp` must be reachable from the Internet for HTTP-01 validation; when `hermes_nginx_enable_firewall: true`, the role adds it automatically.
 
+For a real disposable cloud lab checklist covering Hetzner VM creation, LuaDNS records, Let's Encrypt issuance, Basic Auth checks, and idempotency expectations, see [`docs/hetzner-lab-letsencrypt.md`](docs/hetzner-lab-letsencrypt.md).
+
 ## After the Role Run
 
 Codex authentication is intentionally manual because it uses OAuth/device-code auth and must not be stored in the role:

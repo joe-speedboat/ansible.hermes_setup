@@ -656,6 +656,8 @@ Manual mapping to the role's Phase 35 nginx tasks:
 
 For multiple Hermes users, use one DNS vhost per Linux user and browser UI port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files, private keys, and htpasswd files scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
 
+For a full cloud-lab validation checklist with DNS-before-ACME ordering, Basic Auth checks, certificate SAN verification, and final idempotency expectations, see [`hetzner-lab-letsencrypt.md`](hetzner-lab-letsencrypt.md).
+
 ## 10. Pair Messaging Platforms such as Telegram
 
 To reconfigure missing/basic Hermes settings quickly:
