@@ -6,7 +6,18 @@ map $http_upgrade $connection_upgrade {
 server {
     listen 80;
     server_name {{ hermes_nginx_vhost_fqdn | default(hermes_dashboard_nginx_fqdn) }};
-    return 301 https://$host$request_uri;
+
+{% if hermes_nginx_letsencrypt_enabled | bool %}
+    location ^~ /.well-known/acme-challenge/ {
+        root {{ hermes_nginx_letsencrypt_webroot }};
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+{% endif %}
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 server {

@@ -6,6 +6,14 @@
     hermes_nginx_enabled: false
     hermes_dashboard_nginx_fqdn: hermes.example.ch
     hermes_nginx_tls_enabled: true
+    hermes_nginx_letsencrypt_enabled: false
+    hermes_nginx_letsencrypt_email: hermes@webui-hermes.example.ch
+    hermes_nginx_letsencrypt_staging: false
+    hermes_nginx_letsencrypt_mode: combined
+    hermes_nginx_letsencrypt_webroot: /var/lib/letsencrypt
+    hermes_nginx_letsencrypt_cert_name: hermes.example.ch
+    hermes_nginx_letsencrypt_fullchain_path: /etc/letsencrypt/live/hermes.example.ch/fullchain.pem
+    hermes_nginx_letsencrypt_privkey_path: /etc/letsencrypt/live/hermes.example.ch/privkey.pem
     hermes_dashboard_nginx_basic_auth_enabled: true
     hermes_dashboard_nginx_basic_auth_user: hermes
     hermes_dashboard_nginx_basic_auth_password: not-the-default

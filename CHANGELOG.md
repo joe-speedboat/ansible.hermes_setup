@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Adds optional nginx Let's Encrypt support controlled by `hermes_nginx_letsencrypt_enabled`, disabled by default.
+- Adds `hermes_nginx_letsencrypt_email` with the requested default `{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}`.
+- Keeps `hermes_nginx_letsencrypt_staging`, `hermes_nginx_letsencrypt_mode`, webroot, and live certificate paths as internal role vars.
+- Uses Certbot webroot HTTP-01 validation, opens `80/tcp` when nginx firewall management is enabled, and serves `/.well-known/acme-challenge/` without Basic Auth.
+- Requests one combined certificate for the dashboard vhost plus the WebUI vhost when WebUI is enabled, then re-renders both vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem`.
+- Installs a certbot deploy hook that reloads nginx after renewals and enables `certbot-renew.timer` when available.
+
+### Documentation
+
+- Documents the new defaults and public-DNS usage in `README.md`.
+- Updates the Rocky 10 manual setup runbook with the Certbot dependency and role behavior.
+
+### Tests and validation
+
+- Verified locally:
+  - YAML parse of all role playbooks/task files -> ok
+  - `ansible-playbook tests/nginx_render.yml -i localhost, -c local` -> assertions passed
+  - `ansible-playbook tests/nginx_tasks_syntax.yml -i localhost, -c local --syntax-check` -> ok
+  - full role syntax check through the role symlink harness with Let's Encrypt enabled -> ok
+  - `git diff --check` -> ok
+- Verified on Hetzner Rocky Linux 10.1 with `hermes_nginx_letsencrypt_enabled: true`:
+  - `certbot-4.2.0-1.el10_2.noarch` installed by the role
+  - HTTP-01 challenge webroot returned `200 acme-ok` for both nginx FQDNs before issuance
+  - combined Let's Encrypt certificate issued for `dashboard-hermes.lab.bitbull.ch` and `hermes.lab.bitbull.ch`
+  - nginx config uses `/etc/letsencrypt/live/dashboard-hermes.lab.bitbull.ch/fullchain.pem` for both vhosts
+  - `nginx -t` -> ok
+  - `certbot-renew.timer` -> enabled and active
+  - public HTTPS GET with Basic Auth returned `HTTP 200` for both dashboard and WebUI
+  - steady-state idempotence pass -> `changed=0 failed=0`
+
 ## ansible.hermes_setup v1.2.1 - 2026-07-02
 
 Target branch: `master`
