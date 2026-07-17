@@ -17,10 +17,11 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert 'hermes_webui_nginx_fqdn: "web-{{ hermes_dashboard_nginx_fqdn }}"' in defaults
     assert "{{ hermes_dashboard_nginx_fqdn }}_tls.crt" in defaults
     assert "{{ hermes_dashboard_nginx_fqdn }}_tls.key" in defaults
-    assert "/etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}" in defaults
-    assert 'hermes_dashboard_nginx_basic_auth_realm: "{{ hermes_dashboard_nginx_fqdn }}"' in defaults
-    assert 'hermes_webui_nginx_basic_auth_enabled: "{{ hermes_dashboard_nginx_basic_auth_enabled }}"' in defaults
-    assert 'hermes_webui_nginx_basic_auth_password: "{{ hermes_dashboard_nginx_basic_auth_password }}"' in defaults
+    assert "hermes_dashboard_auth_username:" in defaults
+    assert "hermes_dashboard_auth_password_hash:" in defaults
+    assert "hermes_webui_password:" in defaults
+    assert "hermes_dashboard_nginx_basic_auth" not in defaults
+    assert "hermes_webui_nginx_basic_auth" not in defaults
 
     epel_task_index = prepare_tasks.index("Install repository packages before Hermes packages")
     base_task_index = prepare_tasks.index("Install Hermes base packages")

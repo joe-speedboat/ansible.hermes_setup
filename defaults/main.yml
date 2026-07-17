@@ -44,14 +44,24 @@ hermes_gateway_service_state: started
 hermes_gateway_extra_args: ""
 
 # Dashboard systemd user service. Installed and enabled by default, but the firewall is not opened by this role.
-# For production, keep this bound to 127.0.0.1 and expose it through nginx with TLS + Basic Auth.
+# For production, keep this bound to 127.0.0.1 and expose it through nginx with TLS.
 hermes_dashboard_enabled: true
 hermes_dashboard_service_enabled: true
 hermes_dashboard_service_state: started
-hermes_dashboard_host: 127.0.0.1
+# Bind to the host's primary address so Hermes' own auth gate protects
+# reverse-proxy requests. Port 8080 is not opened by this role; nginx remains
+# the public entry point.
+hermes_dashboard_host: "{{ ansible_default_ipv4.address | default('127.0.0.1') }}"
 hermes_dashboard_port: 8080
 hermes_dashboard_insecure: false
 hermes_dashboard_extra_args: ""
+# Application-side dashboard credentials. Hermes reads these from config.yaml.
+# Prefer password_hash (generated with the upstream scrypt helper) over plaintext.
+hermes_dashboard_auth_username: ""
+hermes_dashboard_auth_password_hash: ""
+hermes_dashboard_auth_password: ""
+hermes_dashboard_auth_secret: ""
+hermes_dashboard_auth_ttl_seconds: 0
 
 # Optional Hermes WebUI service (https://github.com/nesquena/hermes-webui).
 # This is a second browser interface next to the built-in Hermes dashboard.
@@ -67,6 +77,8 @@ hermes_webui_port: 8787
 hermes_webui_state_dir: "{{ hermes_config_dir }}/webui"
 hermes_webui_default_workspace: "{{ hermes_home }}/work"
 hermes_webui_allowed_origins: "https://{{ hermes_webui_nginx_fqdn }}"
+# The WebUI authenticates itself with this optional application password.
+hermes_webui_password: ""
 hermes_webui_extra_args: ""
 
 # Optional nginx reverse proxy for the Hermes dashboard. The intended multi-user
@@ -88,23 +100,13 @@ hermes_nginx_generate_self_signed_cert: true
 hermes_nginx_letsencrypt_enabled: false
 hermes_nginx_letsencrypt_email: "{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}"
 
-hermes_dashboard_nginx_basic_auth_enabled: true
-hermes_dashboard_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}
-hermes_dashboard_nginx_basic_auth_realm: "{{ hermes_dashboard_nginx_fqdn }}"
-hermes_dashboard_nginx_basic_auth_user: hermes
-hermes_dashboard_nginx_basic_auth_password: changeme
-
 # Optional nginx reverse proxy for Hermes WebUI. This intentionally uses a
 # separate FQDN/vhost from the built-in Hermes dashboard.
 hermes_webui_nginx_fqdn: "web-{{ hermes_dashboard_nginx_fqdn }}"
 hermes_webui_nginx_conf: "/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf"
 hermes_webui_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt"
 hermes_webui_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key"
-hermes_webui_nginx_basic_auth_enabled: "{{ hermes_dashboard_nginx_basic_auth_enabled }}"
-hermes_webui_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-{{ hermes_webui_nginx_fqdn }}
-hermes_webui_nginx_basic_auth_realm: "{{ hermes_webui_nginx_fqdn }}"
-hermes_webui_nginx_basic_auth_user: "{{ hermes_dashboard_nginx_basic_auth_user }}"
-hermes_webui_nginx_basic_auth_password: "{{ hermes_dashboard_nginx_basic_auth_password }}"
+# Authentication is provided by the WebUI application, not nginx.
 
 # Configure default LLM provider/model for OpenAI Codex OAuth.
 # This writes only non-secret defaults. Authentication remains manual:

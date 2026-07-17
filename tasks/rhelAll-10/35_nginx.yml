@@ -3,15 +3,10 @@
   ansible.builtin.assert:
     that:
       - hermes_dashboard_nginx_fqdn | length > 0
-      - hermes_dashboard_host in ['127.0.0.1', 'localhost', '::1']
+      - hermes_dashboard_host | length > 0
       - hermes_nginx_tls_enabled | bool
-      - not (hermes_dashboard_nginx_basic_auth_enabled | bool) or (hermes_dashboard_nginx_basic_auth_user | length > 0)
-      - not (hermes_dashboard_nginx_basic_auth_enabled | bool) or (hermes_dashboard_nginx_basic_auth_password | length > 0)
     fail_msg: >-
-      hermes_nginx_enabled requires a non-empty hermes_dashboard_nginx_fqdn, a loopback-only
-      hermes_dashboard_host, TLS enabled, and a non-empty Basic Auth user/password when Basic Auth is enabled.
-      Use one DNS vhost per Hermes Linux user and proxy to that user's loopback dashboard port.
-  no_log: "{{ hermes_dashboard_nginx_basic_auth_enabled | bool }}"
+      hermes_nginx_enabled requires a non-empty hermes_dashboard_nginx_fqdn, a valid dashboard bind address, and TLS enabled. Use one DNS vhost per Hermes Linux user.
   when: hermes_nginx_enabled | bool
 
 - name: Validate Hermes WebUI nginx reverse proxy settings
@@ -21,28 +16,11 @@
       - hermes_webui_host in ['127.0.0.1', 'localhost', '::1']
       - hermes_webui_nginx_fqdn != hermes_dashboard_nginx_fqdn
       - hermes_nginx_tls_enabled | bool
-      - not (hermes_webui_nginx_basic_auth_enabled | bool) or (hermes_webui_nginx_basic_auth_user | length > 0)
-      - not (hermes_webui_nginx_basic_auth_enabled | bool) or (hermes_webui_nginx_basic_auth_password | length > 0)
     fail_msg: >-
-      hermes_webui_enabled with hermes_nginx_enabled requires a non-empty
-      hermes_webui_nginx_fqdn that differs from hermes_dashboard_nginx_fqdn, a
-      loopback-only hermes_webui_host, TLS enabled, and non-empty Basic Auth
-      user/password when Basic Auth is enabled. Use separate DNS vhosts for
-      the dashboard and WebUI.
-  no_log: "{{ hermes_webui_nginx_basic_auth_enabled | bool }}"
+      hermes_nginx_enabled requires a non-empty hermes_webui_nginx_fqdn that differs from hermes_dashboard_nginx_fqdn, a valid WebUI bind address, and TLS enabled. Use separate DNS vhosts for the dashboard and WebUI.
   when:
     - hermes_nginx_enabled | bool
     - hermes_webui_enabled | bool
-
-- name: Warn when Hermes nginx Basic Auth uses the default password
-  ansible.builtin.debug:
-    msg: >-
-      WARNING: hermes_dashboard_nginx_basic_auth_password is still set to the default value 'changeme'.
-      Override it with Ansible Vault before exposing this endpoint outside a disposable lab.
-  when:
-    - hermes_nginx_enabled | bool
-    - hermes_dashboard_nginx_basic_auth_enabled | bool
-    - hermes_dashboard_nginx_basic_auth_password == 'changeme'
 
 - name: Validate Hermes nginx Let's Encrypt settings
   ansible.builtin.assert:
@@ -193,28 +171,12 @@
     - hermes_nginx_enabled | bool
     - hermes_nginx_letsencrypt_enabled | bool
 
-- name: Write Hermes nginx Basic Auth password file
-  ansible.builtin.copy:
-    dest: "{{ hermes_dashboard_nginx_basic_auth_file }}"
-    owner: root
-    group: nginx
-    mode: "0640"
-    content: |
-      {{ hermes_dashboard_nginx_basic_auth_user }}:{{ hermes_dashboard_nginx_basic_auth_password | password_hash('sha512', hermes_dashboard_nginx_basic_auth_user) }}
-  no_log: true
-  notify: restart nginx
-  when:
-    - hermes_nginx_enabled | bool
-    - hermes_dashboard_nginx_basic_auth_enabled | bool
-
-- name: Remove Hermes nginx Basic Auth password file when disabled
+- name: Remove legacy Hermes nginx Basic Auth password file
   ansible.builtin.file:
-    path: "{{ hermes_dashboard_nginx_basic_auth_file }}"
+    path: "/etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}"
     state: absent
   notify: restart nginx
-  when:
-    - hermes_nginx_enabled | bool
-    - not (hermes_dashboard_nginx_basic_auth_enabled | bool)
+  when: hermes_nginx_enabled | bool
 
 - name: Remove legacy Hermes nginx reverse proxy config path
   ansible.builtin.file:
@@ -233,6 +195,7 @@
     group: root
     mode: "0644"
   vars:
+    hermes_nginx_vhost_host: "{{ hermes_dashboard_host }}"
     hermes_nginx_vhost_tls_cert: >-
       {{
         (
@@ -250,30 +213,14 @@
   notify: restart nginx
   when: hermes_nginx_enabled | bool
 
-- name: Write Hermes WebUI nginx Basic Auth password file
-  ansible.builtin.copy:
-    dest: "{{ hermes_webui_nginx_basic_auth_file }}"
-    owner: root
-    group: nginx
-    mode: "0640"
-    content: |
-      {{ hermes_webui_nginx_basic_auth_user }}:{{ hermes_webui_nginx_basic_auth_password | password_hash('sha512', hermes_webui_nginx_basic_auth_user) }}
-  no_log: true
-  notify: restart nginx
-  when:
-    - hermes_nginx_enabled | bool
-    - hermes_webui_enabled | bool
-    - hermes_webui_nginx_basic_auth_enabled | bool
-
-- name: Remove Hermes WebUI nginx Basic Auth password file when disabled
+- name: Remove legacy Hermes WebUI nginx Basic Auth password file
   ansible.builtin.file:
-    path: "{{ hermes_webui_nginx_basic_auth_file }}"
+    path: "/etc/nginx/.htpasswd-hermes-{{ hermes_webui_nginx_fqdn }}"
     state: absent
   notify: restart nginx
   when:
     - hermes_nginx_enabled | bool
     - hermes_webui_enabled | bool
-    - not (hermes_webui_nginx_basic_auth_enabled | bool)
 
 - name: Write Hermes WebUI nginx reverse proxy config
   ansible.builtin.template:
@@ -299,9 +246,6 @@
           and hermes_nginx_letsencrypt_cert_stat.stat.exists | default(false)
         ) | ternary(hermes_nginx_letsencrypt_privkey_path, hermes_webui_nginx_tls_key)
       }}
-    hermes_nginx_vhost_basic_auth_enabled: "{{ hermes_webui_nginx_basic_auth_enabled }}"
-    hermes_nginx_vhost_basic_auth_file: "{{ hermes_webui_nginx_basic_auth_file }}"
-    hermes_nginx_vhost_basic_auth_realm: "{{ hermes_webui_nginx_basic_auth_realm }}"
     hermes_nginx_vhost_preserve_public_host: true
   notify: restart nginx
   when:
@@ -489,9 +433,6 @@
     hermes_nginx_vhost_port: "{{ hermes_webui_port }}"
     hermes_nginx_vhost_tls_cert: "{{ hermes_nginx_letsencrypt_fullchain_path }}"
     hermes_nginx_vhost_tls_key: "{{ hermes_nginx_letsencrypt_privkey_path }}"
-    hermes_nginx_vhost_basic_auth_enabled: "{{ hermes_webui_nginx_basic_auth_enabled }}"
-    hermes_nginx_vhost_basic_auth_file: "{{ hermes_webui_nginx_basic_auth_file }}"
-    hermes_nginx_vhost_basic_auth_realm: "{{ hermes_webui_nginx_basic_auth_realm }}"
     hermes_nginx_vhost_preserve_public_host: true
   notify: restart nginx
   when:

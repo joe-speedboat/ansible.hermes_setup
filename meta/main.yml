@@ -18,7 +18,6 @@ galaxy_info:
     - dashboard
     - nginx
     - reverseproxy
-    - basicauth
     - playwright
     - codex
 dependencies: []

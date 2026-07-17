@@ -15,7 +15,7 @@
       - ""
       - "3. Dashboard access:"
       - "   Local loopback check: curl -fsS http://127.0.0.1:{{ hermes_dashboard_port }} >/dev/null"
-      - "   Do not expose {{ hermes_dashboard_port }}/tcp directly. Prefer hermes_nginx_enabled: true for HTTPS + Basic Auth."
+      - "   Do not expose {{ hermes_dashboard_port }}/tcp directly. Prefer hermes_nginx_enabled: true for HTTPS; authentication is configured in the dashboard application."
       - "   For multiple Hermes users, use one DNS vhost per Linux user and dashboard port."
       - ""
       - "4. If nginx is enabled, verify the public endpoint:"

@@ -10,16 +10,11 @@
     hermes_dashboard_nginx_tls_cert: /etc/pki/tls/hermes-chris/tls.crt
     hermes_dashboard_nginx_tls_key: /etc/pki/tls/hermes-chris/tls.key
     hermes_nginx_client_max_body_size: 100m
-    hermes_dashboard_nginx_basic_auth_enabled: true
-    hermes_dashboard_nginx_basic_auth_realm: Hermes Chris
-    hermes_dashboard_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-chris
     hermes_dashboard_port: 8081
     hermes_webui_port: 8787
     hermes_webui_nginx_fqdn: webui.example.ch
     hermes_webui_nginx_tls_cert: /etc/pki/tls/hermes-webui/tls.crt
     hermes_webui_nginx_tls_key: /etc/pki/tls/hermes-webui/tls.key
-    hermes_webui_nginx_basic_auth_realm: Hermes WebUI
-    hermes_webui_nginx_basic_auth_file: /etc/nginx/.htpasswd-hermes-webui
     rendered_nginx_conf: /tmp/hermes-nginx-render.conf
     rendered_webui_nginx_conf: /tmp/hermes-webui-nginx-render.conf
   tasks:
@@ -38,11 +33,10 @@
       ansible.builtin.assert:
         that:
           - "'server_name chris-hermes.example.ch;' in rendered_nginx_text"
-          - "'auth_basic \"Hermes Chris\";' in rendered_nginx_text"
-          - "'auth_basic_user_file /etc/nginx/.htpasswd-hermes-chris;' in rendered_nginx_text"
+          - "'auth_basic ' not in rendered_nginx_text"
+          - "'auth_basic_user_file' not in rendered_nginx_text"
           - "'proxy_pass http://127.0.0.1:8081;' in rendered_nginx_text"
           - "'proxy_set_header Host 127.0.0.1:8081;' in rendered_nginx_text"
-          - "'proxy_set_header Authorization \"\";' in rendered_nginx_text"
           - "'proxy_set_header Origin \"\";' in rendered_nginx_text"
           - "'proxy_set_header Upgrade $http_upgrade;' in rendered_nginx_text"
           - "'proxy_set_header Connection $connection_upgrade;' in rendered_nginx_text"
@@ -61,8 +55,6 @@
         hermes_nginx_vhost_port: "{{ hermes_webui_port }}"
         hermes_nginx_vhost_tls_cert: "{{ hermes_webui_nginx_tls_cert }}"
         hermes_nginx_vhost_tls_key: "{{ hermes_webui_nginx_tls_key }}"
-        hermes_nginx_vhost_basic_auth_realm: "{{ hermes_webui_nginx_basic_auth_realm }}"
-        hermes_nginx_vhost_basic_auth_file: "{{ hermes_webui_nginx_basic_auth_file }}"
         hermes_nginx_vhost_preserve_public_host: true
 
     - name: Read rendered WebUI nginx config
@@ -74,8 +66,8 @@
       ansible.builtin.assert:
         that:
           - "'server_name webui.example.ch;' in rendered_webui_nginx_text"
-          - "'auth_basic \"Hermes WebUI\";' in rendered_webui_nginx_text"
-          - "'auth_basic_user_file /etc/nginx/.htpasswd-hermes-webui;' in rendered_webui_nginx_text"
+          - "'auth_basic ' not in rendered_webui_nginx_text"
+          - "'auth_basic_user_file' not in rendered_webui_nginx_text"
           - "'proxy_pass http://127.0.0.1:8787;' in rendered_webui_nginx_text"
           - "'proxy_set_header Host $host;' in rendered_webui_nginx_text"
           - "'proxy_set_header X-Forwarded-Host $host;' in rendered_webui_nginx_text"
