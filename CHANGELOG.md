@@ -2,7 +2,35 @@
 
 ## Unreleased
 
-No unreleased changes yet.
+### Highlights
+
+- Moves Hermes dashboard authentication from nginx into the official Hermes `dashboard.basic_auth` configuration.
+- Removes nginx Basic Auth from the dashboard and WebUI reverse proxies while keeping nginx for TLS, routing, reverse proxying, and WebSockets.
+- Configures WebUI password authentication through `HERMES_WEBUI_PASSWORD`; no configurable WebUI username is added.
+
+### Fixes
+
+- Makes dashboard application-auth configuration convergent by comparing existing Hermes settings before applying changes.
+- Removes legacy dashboard and WebUI nginx htpasswd files during role execution.
+- Restarts the affected Hermes dashboard and WebUI user services when application-auth configuration changes.
+- Protects credential-bearing Ansible tasks with `no_log: true`.
+
+### Documentation
+
+- Updates README and Rocky Linux 10 runbooks for application-owned authentication.
+- Removes active nginx Basic Auth examples and validation instructions from the current documentation.
+- Documents application login checks and the completed idempotency validation path.
+
+### Tests and validation
+
+- `pytest -q` -> `3 passed`.
+- `ansible-playbook tests/nginx_render.yml` -> `ok=6 changed=0 failed=0`.
+- Role syntax check through a temporary Galaxy-style role symlink -> ok.
+- Fresh converge on a Rocky Linux 10.1 lab VM -> `ok=86 changed=1 failed=0`.
+- Second role run for idempotency -> `ok=84 changed=0 failed=0`.
+- Dashboard and WebUI valid application login/session checks returned `HTTP 200`; invalid credentials returned `HTTP 401`.
+- Authenticated dashboard and WebUI sessions were verified through the nginx TLS reverse proxies.
+- `nginx -t` -> successful; dashboard, WebUI, and nginx services active.
 
 ## ansible.hermes_setup v1.3.0 - 2026-07-04
 
