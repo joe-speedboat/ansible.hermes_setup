@@ -579,16 +579,16 @@ sudo certbot certificates
 echo | openssl s_client -connect hermes.example.ch:443 -servername hermes.example.ch 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName
 echo | openssl s_client -connect web-hermes.example.ch:443 -servername web-hermes.example.ch 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName
 curl -skI https://hermes.example.ch/ | sed -n '1,8p'
-curl -skI -u chris:'<password>' https://hermes.example.ch/ | sed -n '1,8p'
 curl -skI https://web-hermes.example.ch/ | sed -n '1,8p'
-curl -skI -u chris:'<password>' https://web-hermes.example.ch/ | sed -n '1,8p'
+# Use the dashboard application's login flow and the WebUI /api/auth/login endpoint
+# with credentials stored outside this document.
 ```
 
 Manual mapping to the role's Phase 35 nginx tasks:
 
 | Ansible task | Manual setup equivalent |
 |---|---|
-| Validate Hermes nginx reverse proxy settings | Confirm dashboard FQDN, loopback bind, TLS, and Basic Auth values before writing vhosts. |
+| Validate Hermes nginx reverse proxy settings | Confirm dashboard FQDN, loopback bind, TLS, and application-auth settings before writing vhosts. |
 | Validate Hermes WebUI nginx reverse proxy settings | Confirm WebUI uses a separate FQDN and loopback bind when WebUI is enabled. |
 | Configure application authentication | Configure dashboard `basic_auth` and WebUI password authentication in the target applications, not in nginx. |
 | Validate Hermes nginx Let's Encrypt settings | Confirm ACME email, TLS enabled, public DNS, and combined certificate intent before running Certbot. |
@@ -625,9 +625,9 @@ Manual mapping to the role's Phase 35 nginx tasks:
 | Validate nginx configuration after Let's Encrypt certificate switch | `nginx -t` after changing certificate paths. |
 | Enable certbot renewal timer when available | `systemctl enable --now certbot-renew.timer`. |
 
-For multiple Hermes users, use one DNS vhost per Linux user and browser UI port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files, private keys, and htpasswd files scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
+For multiple Hermes users, use one DNS vhost per Linux user and browser UI port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files and private keys scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
 
-For a full cloud-lab validation checklist with DNS-before-ACME ordering, Basic Auth checks, certificate SAN verification, and final idempotency expectations, see [`hetzner-lab-letsencrypt.md`](hetzner-lab-letsencrypt.md).
+For a full cloud-lab validation checklist with DNS-before-ACME ordering, application-auth checks, certificate SAN verification, and final idempotency expectations, see [`hetzner-lab-letsencrypt.md`](hetzner-lab-letsencrypt.md).
 
 ## 10. Pair Messaging Platforms such as Telegram
 

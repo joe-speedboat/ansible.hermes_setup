@@ -1,6 +1,6 @@
 # Hetzner Lab with LuaDNS and Let's Encrypt
 
-This checklist documents the real-lab path for deploying `joe-speedboat.hermes_setup` on a disposable Hetzner Cloud Rocky Linux 10 VM with public nginx vhosts, LuaDNS records, Basic Auth, and Let's Encrypt certificates.
+This checklist documents the real-lab path for deploying `joe-speedboat.hermes_setup` on a disposable Hetzner Cloud Rocky Linux 10 VM with public nginx vhosts, LuaDNS records, application-owned authentication, and Let's Encrypt certificates.
 
 Use example hostnames in public documentation. Replace them with the real lab names only in private inventory or vault files.
 
@@ -26,12 +26,9 @@ hermes_nginx_letsencrypt_email: hermes@webui.example.com
 hermes_dashboard_nginx_fqdn: dashboard.example.com
 hermes_webui_nginx_fqdn: webui.example.com
 
-hermes_dashboard_nginx_basic_auth_enabled: true
-hermes_dashboard_nginx_basic_auth_user: hermes
-hermes_dashboard_nginx_basic_auth_password: "{{ vault_hermes_basic_auth_password }}"
-hermes_webui_nginx_basic_auth_enabled: true
-hermes_webui_nginx_basic_auth_user: hermes
-hermes_webui_nginx_basic_auth_password: "{{ vault_hermes_basic_auth_password }}"
+hermes_dashboard_auth_username: hermes
+hermes_dashboard_auth_password_hash: "{{ vault_hermes_dashboard_password_hash }}"
+hermes_webui_password: "{{ vault_hermes_webui_password }}"
 ```
 
 ## Ordering that matters
@@ -40,7 +37,7 @@ hermes_webui_nginx_basic_auth_password: "{{ vault_hermes_basic_auth_password }}"
 2. Create or update DNS records for every public nginx vhost before running the role with Let's Encrypt enabled.
 3. Verify public DNS resolution from public resolvers.
 4. Run the Ansible playbook.
-5. Verify nginx, Certbot, services, public HTTPS, Basic Auth, and idempotency.
+5. Verify nginx, Certbot, services, public HTTPS, application authentication, and idempotency.
 
 Do not run Certbot before DNS points at the VM. HTTP-01 validation must reach the nginx ACME webroot on port `80/tcp`.
 
@@ -91,7 +88,7 @@ With `hermes_nginx_letsencrypt_enabled: true`, the role:
 
 - installs `nginx`, `firewalld`, `certbot`, and SELinux proxy prerequisites;
 - renders bootstrap vhosts with self-signed certificates so nginx can start before ACME succeeds;
-- serves `/.well-known/acme-challenge/` on port 80 without Basic Auth;
+- serves `/.well-known/acme-challenge/` on port 80 without application authentication;
 - reloads nginx before Certbot so the challenge location is active;
 - requests one combined Let's Encrypt certificate named after `hermes_dashboard_nginx_fqdn`;
 - includes `hermes_webui_nginx_fqdn` as a second SAN when `hermes_webui_enabled: true`;
@@ -137,26 +134,17 @@ Expected certificate SANs:
 DNS:dashboard.example.com, DNS:webui.example.com
 ```
 
-## Public HTTPS and Basic Auth checks
+## Public HTTPS and application authentication checks
 
 From outside the VM:
 
 ```bash
-curl -sS -o /dev/null -w '%{http_code} %{ssl_verify_result}\n' https://dashboard.example.com/
-curl -sS -o /dev/null -w '%{http_code} %{ssl_verify_result}\n' -u hermes:"${HERMES_BASIC_AUTH_PASSWORD}" https://dashboard.example.com/
-curl -sS -o /dev/null -w '%{http_code} %{ssl_verify_result}\n' https://webui.example.com/
-curl -sS -o /dev/null -w '%{http_code} %{ssl_verify_result}\n' -u hermes:"${HERMES_BASIC_AUTH_PASSWORD}" https://webui.example.com/
+curl -sS -o /dev/null -w '%{http_code} %{ssl_verify_result}\\n' https://dashboard.example.com/
+curl -sS -o /dev/null -w '%{http_code} %{ssl_verify_result}\\n' -u hermes:"${HERMES_DASHBOARD_PASSWORD}" https://dashboard.example.com/
+curl -sS -o /dev/null -w '%{http_code} %{ssl_verify_result}\\n' https://webui.example.com/
 ```
 
-Expected behavior:
-
-```text
-without Basic Auth: HTTP 401
-with Basic Auth:    HTTP 200
-ssl_verify_result:  0
-```
-
-Use a normal GET for WebUI. Some WebUI routes may not implement `HEAD`, so `curl -I` is not a complete health check for that vhost.
+Use the dashboard login flow with the configured username/password. For WebUI, use its documented password login flow; the current WebUI supports a password but does not expose a configurable username. Expected rejection/success status is application-specific. An nginx `WWW-Authenticate` response or an nginx-generated Basic Auth prompt indicates that authentication is still incorrectly configured in the proxy.
 
 ## Idempotency expectation
 

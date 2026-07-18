@@ -225,6 +225,6 @@ flowchart LR
 | 20 | **Install & Configure** | Hermes CLI via upstream `install.sh`, `config set` provider/model, optional WebUI checkout/env | ❌ |
 | 25 | **Ansible Runtime** | `curl \| sh` → `~/ansible/apps/`, .bashrc integration | ✅ `ansible_enable` |
 | 30 | **Systemd Services** | Template → `hermes-gateway.service`, `hermes-dashboard.service`, optional `hermes-webui.service`, enable+start via `--user` | ✅ gateway/dashboard/WebUI toggles |
-| 35 | **nginx Proxy** | Bootstrap self-signed TLS, optional combined Let's Encrypt cert, `.htpasswd`, dashboard/WebUI nginx configs, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
+| 35 | **nginx Proxy** | Bootstrap self-signed TLS, optional combined Let's Encrypt cert, legacy-auth cleanup, dashboard/WebUI nginx configs, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
 | 40 | **Playwright** | `npm install playwright`, `npx playwright install chromium`, `ldd` check, smoke test | ✅ `hermes_playwright_enabled` |
 | 50 | **Next Steps** | Print manual `hermes auth add openai-codex` instructions | ❌ |

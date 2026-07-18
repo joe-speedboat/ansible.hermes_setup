@@ -60,6 +60,31 @@
     - hermes_dashboard_enabled | bool
     - hermes_dashboard_auth_username | length > 0 or hermes_dashboard_auth_password_hash | length > 0 or hermes_dashboard_auth_password | length > 0
 
+- name: Read current Hermes dashboard application authentication settings
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - "{{ hermes_user }}"
+      - --
+      - env
+      - "HOME={{ hermes_home }}"
+      - "{{ hermes_bin_path }}"
+      - config
+      - get
+      - "dashboard.basic_auth.{{ item }}"
+  loop:
+    - username
+    - password_hash
+    - password
+    - secret
+    - session_ttl_seconds
+  register: hermes_dashboard_auth_current
+  no_log: true
+  changed_when: false
+  failed_when: false
+  when: hermes_dashboard_enabled | bool
+
 - name: Remove empty Hermes dashboard application authentication settings
   ansible.builtin.command:
     argv:
@@ -79,12 +104,16 @@
     - { key: password, value: "{{ hermes_dashboard_auth_password }}" }
     - { key: secret, value: "{{ hermes_dashboard_auth_secret }}" }
     - { key: session_ttl_seconds, value: "{{ hermes_dashboard_auth_ttl_seconds }}" }
+  loop_control:
+    index_var: hermes_dashboard_auth_index
   no_log: true
-  changed_when: false
-  failed_when: false
+  changed_when: true
+  notify: restart Hermes dashboard
   when:
     - hermes_dashboard_enabled | bool
     - item.value | string | length == 0
+    - hermes_dashboard_auth_current.results[hermes_dashboard_auth_index].rc == 0
+    - hermes_dashboard_auth_current.results[hermes_dashboard_auth_index].stdout | trim | length > 0
 
 - name: Configure Hermes dashboard application authentication
   ansible.builtin.command:
@@ -106,11 +135,15 @@
     - { key: password, value: "{{ hermes_dashboard_auth_password }}" }
     - { key: secret, value: "{{ hermes_dashboard_auth_secret }}" }
     - { key: session_ttl_seconds, value: "{{ hermes_dashboard_auth_ttl_seconds }}" }
+  loop_control:
+    index_var: hermes_dashboard_auth_index
   no_log: true
-  changed_when: false
+  changed_when: true
+  notify: restart Hermes dashboard
   when:
     - hermes_dashboard_enabled | bool
     - item.value | string | length > 0
+    - hermes_dashboard_auth_current.results[hermes_dashboard_auth_index].rc != 0 or hermes_dashboard_auth_current.results[hermes_dashboard_auth_index].stdout | trim != item.value | string | trim
 
 - name: Print manual Codex authentication instructions
   ansible.builtin.debug:
@@ -160,6 +193,8 @@
     owner: "{{ hermes_user }}"
     group: "{{ hermes_group }}"
     mode: '0640'
+  no_log: true
+  notify: restart Hermes WebUI
   when: hermes_webui_enabled | bool
 
 - name: Check Hermes version
