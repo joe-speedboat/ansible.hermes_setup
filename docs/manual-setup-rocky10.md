@@ -388,9 +388,9 @@ curl -fsS http://127.0.0.1:8787/health >/dev/null
 
 The WebUI also listens on loopback only. Expose it with its own DNS vhost, for example `web-hermes.example.ch`, instead of sharing the dashboard vhost.
 
-## 9. Optional nginx HTTPS Reverse Proxy with Application Authentication
+## 9. nginx HTTPS Reverse Proxy with Application Authentication
 
-The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. nginx provides TLS, routing, and WebSocket proxying only; authentication belongs to the dashboard and WebUI applications. Configure dashboard authentication with `dashboard.basic_auth` (prefer `password_hash`) and WebUI authentication with `HERMES_WEBUI_PASSWORD`. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to request one combined Let's Encrypt certificate.
+The Ansible role enables this by default with `hermes_nginx_enabled: true` and `hermes_webui_enabled: true`. Set `hermes_webui_enabled: false` for a dashboard-only deployment. It renders separate vhosts for the built-in dashboard and WebUI. nginx provides TLS, routing, and WebSocket proxying only; authentication belongs to the dashboard and WebUI applications. Configure dashboard authentication with `dashboard.basic_auth` (prefer `password_hash`) and WebUI authentication with `HERMES_WEBUI_PASSWORD`. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to request one combined Let's Encrypt certificate.
 
 Install the reverse-proxy packages:
 
@@ -510,7 +510,7 @@ server {
 }
 ```
 
-Enable nginx and firewalld, then open HTTPS. If you plan to request Let's Encrypt certificates, open HTTP as well because HTTP-01 validation must reach `/.well-known/acme-challenge/` over port 80. Start `firewalld` before running `firewall-cmd`; fresh Rocky 10 minimal cloud images may not include or start it by default.
+Enable nginx and firewalld, then open HTTPS and HTTP. The role's default HTTP listener uses port 80 for the ACME HTTP-01 webroot and redirects every other HTTP request to HTTPS. Start `firewalld` before running `firewall-cmd`; fresh Rocky 10 minimal cloud images may not include or start it by default.
 
 ```bash
 sudo setsebool -P httpd_can_network_connect 1
@@ -611,9 +611,9 @@ Manual mapping to the role's Phase 35 nginx tasks:
 | Validate nginx configuration | `nginx -t` before starting/reloading nginx. |
 | Enable and start nginx | `systemctl enable --now nginx`. |
 | Enable and start firewalld for Hermes nginx firewall management | `systemctl enable --now firewalld`. |
-| Build effective Hermes nginx firewall port list | Include `443/tcp`, plus `80/tcp` when Let's Encrypt is used. |
+| Build effective Hermes nginx firewall port list | Include `443/tcp`, plus `80/tcp` whenever `hermes_nginx_http_enabled: true` (the default). |
 | Remove legacy http/https firewalld services for Hermes nginx | `firewall-cmd --permanent --remove-service=http/https || true`. |
-| Open configured ports in firewalld for Hermes nginx | `firewall-cmd --permanent --add-port=443/tcp` and, for ACME, `80/tcp`. |
+| Open configured ports in firewalld for Hermes nginx | `firewall-cmd --permanent --add-port=443/tcp` and, when the HTTP listener is enabled, `80/tcp` for ACME challenges and HTTP-to-HTTPS redirects. |
 | Reload firewalld after Hermes nginx service changes | `firewall-cmd --reload`. |
 | Install Let's Encrypt nginx deploy hook directory | `install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy`. |
 | Install Let's Encrypt nginx deploy hook | Write `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh`. |

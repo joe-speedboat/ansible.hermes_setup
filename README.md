@@ -11,9 +11,10 @@ This role is intentionally conservative for sysadmin use:
 - prints the manual Codex OAuth command instead of trying to automate secrets/device-code auth
 - installs, enables, and starts a `hermes-gateway.service` systemd user service by default
 - installs, enables, and starts a loopback-only `hermes-dashboard.service` systemd user service by default
-- optionally installs, enables, and starts a loopback-only `hermes-webui.service` systemd user service
-- exposes the dashboard through nginx HTTPS as a TLS-only reverse proxy; dashboard authentication is configured in Hermes itself
-- optionally exposes Hermes WebUI through a separate nginx HTTPS reverse proxy; WebUI password authentication is configured in the WebUI itself
+- installs, enables, and starts a loopback-only `hermes-webui.service` systemd user service by default
+- exposes the dashboard through nginx HTTPS as a TLS reverse proxy; dashboard authentication is configured in Hermes itself
+- exposes Hermes WebUI through a separate nginx HTTPS reverse proxy by default; WebUI password authentication is configured in the WebUI itself
+- keeps `80/tcp` open when the nginx HTTP listener is enabled for ACME HTTP-01 challenges and HTTP-to-HTTPS redirects
 - optionally installs a user-scope Ansible runtime for the dedicated `hermes` user
 - installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries by default
 
@@ -59,7 +60,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_host`: dashboard bind address. Default: `127.0.0.1`
 - `hermes_dashboard_port`: dashboard port. Default: `8080`
 - `hermes_dashboard_insecure`: pass `--insecure` to the dashboard. Default: `false`
-- `hermes_webui_enabled`: install Hermes WebUI from `https://github.com/nesquena/hermes-webui`. Default: `false`
+- `hermes_webui_enabled`: install Hermes WebUI from `https://github.com/nesquena/hermes-webui`. Default: `true`; set to `false` for dashboard-only deployments
 - `hermes_webui_service_enabled`: enable WebUI service at boot when WebUI is installed. Default: `true`
 - `hermes_webui_service_state`: WebUI runtime state when WebUI is installed. Default: `started`
 - `hermes_webui_repo_url`: WebUI Git repository URL. Default: `https://github.com/nesquena/hermes-webui.git`
@@ -71,12 +72,12 @@ Important defaults from `defaults/main.yml`:
 - `hermes_webui_default_workspace`: default WebUI workspace. Default: `{{ hermes_home }}/work`
 - `hermes_webui_allowed_origins`: WebUI allowed browser origin. Default: `https://{{ hermes_webui_nginx_fqdn }}`
 - `hermes_nginx_enabled`: install nginx HTTPS reverse proxies for enabled browser UIs. Default: `true`
-- `hermes_nginx_http_enabled`: enable the HTTP listener for the ACME webroot and HTTPS redirect. Default: `true`
+- `hermes_nginx_http_enabled`: enable the HTTP listener on `80/tcp` for the ACME webroot and HTTP-to-HTTPS redirect. Default: `true`
 - `hermes_nginx_letsencrypt_challenge_method`: ACME challenge method (`tls-alpn-01` or `webroot`). Default: `webroot`
-- `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: `dash-{{ ansible_fqdn | default(inventory_hostname) }}`
+- `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: `adm-{{ ansible_fqdn | default(inventory_hostname) }}`
 - `hermes_dashboard_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_dashboard_nginx_fqdn }}.conf`
 - `hermes_nginx_enable_firewall`: manage firewalld ports. Default: `true`
-- `firewalld_open_ports`: list of ports to open in firewalld when nginx firewall management is enabled. Default: `['443/tcp']`
+- `firewalld_open_ports`: base list of ports to open in firewalld when nginx firewall management is enabled. Default: `['443/tcp']`; `80/tcp` is added automatically when `hermes_nginx_http_enabled: true`
 - `hermes_nginx_tls_dir`: directory for role-managed self-signed TLS material. Default: `/etc/pki/tls/hermes`
 - `hermes_dashboard_nginx_tls_cert`: certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.crt`
 - `hermes_dashboard_nginx_tls_key`: private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.key`
@@ -88,7 +89,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_auth_password`: plaintext fallback for the application config. Default: empty; prefer `hermes_dashboard_auth_password_hash`; one of the two password variables is required when `hermes_dashboard_enabled: true`
 - `hermes_dashboard_auth_secret`: optional dashboard session-signing secret. Default: empty
 - `hermes_webui_password`: application-side WebUI password. Default: empty; required when `hermes_webui_enabled: true`
-- `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `web-{{ hermes_dashboard_nginx_fqdn }}`
+- `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `{{ ansible_fqdn | default(inventory_hostname) }}`
 - `hermes_webui_nginx_conf`: WebUI nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf`
 - `hermes_webui_nginx_tls_cert`: WebUI certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt`
 - `hermes_webui_nginx_tls_key`: WebUI private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key`
@@ -124,6 +125,8 @@ Important defaults from `defaults/main.yml`:
 
         hermes_dashboard_auth_username: dashboard-admin
         hermes_dashboard_auth_password_hash: "{{ vault_hermes_dashboard_password_hash }}"
+
+        hermes_webui_enabled: false
 
         hermes_nginx_enabled: true
         hermes_dashboard_nginx_fqdn: hermes.example.ch
@@ -161,6 +164,7 @@ Use two DNS names for one Hermes instance when both browser interfaces are enabl
 
         hermes_dashboard_auth_username: dashboard-admin
         hermes_dashboard_auth_password_hash: "{{ vault_hermes_password_hash }}"
+        hermes_webui_password: "{{ vault_hermes_webui_password }}"
 ...
 ```
 
@@ -205,6 +209,7 @@ Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes 
         hermes_dashboard_nginx_fqdn: "{{ hermes_instance.fqdn }}"
         hermes_dashboard_auth_username: "{{ hermes_instance.auth_user }}"
         hermes_dashboard_auth_password: "{{ hermes_instance.auth_password }}"
+        hermes_webui_enabled: false
 ...
 ```
 
@@ -214,10 +219,12 @@ Hermes dashboard and Hermes WebUI use root-relative frontend assets, REST API ro
 
 For the built-in dashboard, the nginx template forwards the configured dashboard bind address as `Host` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. For Hermes WebUI, the template preserves the browser-visible `Host` and `X-Forwarded-*` headers and configures `HERMES_WEBUI_ALLOWED_ORIGINS` for the WebUI service. Authentication is handled by the target application; nginx does not add, remove, or enforce Basic Auth credentials.
 
+When `hermes_nginx_enabled: true`, the role exposes the enabled browser interfaces through nginx on HTTPS port `443/tcp`. Because `hermes_nginx_http_enabled` defaults to `true`, it also opens `80/tcp`; port 80 serves only the ACME challenge path and redirects all other requests to HTTPS. Set `hermes_nginx_http_enabled: false` only when using a certificate workflow that does not require HTTP-01 and you explicitly want HTTPS-only behavior.
+
+
 When `hermes_nginx_letsencrypt_enabled: true`, the role keeps self-signed certificates as the bootstrap fallback, serves HTTP-01 challenges from `/.well-known/acme-challenge/`, requests one combined Let's Encrypt certificate for the dashboard FQDN plus the WebUI FQDN when WebUI is enabled, and re-renders both nginx vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem` after issuance. Port `80/tcp` must be reachable from the Internet for HTTP-01 validation; when `hermes_nginx_enable_firewall: true`, the role adds it automatically.
 
 For a real disposable cloud lab checklist covering Hetzner VM creation, LuaDNS records, Let's Encrypt issuance, application-auth checks, and idempotency expectations, see [`docs/hetzner-lab-letsencrypt.md`](docs/hetzner-lab-letsencrypt.md).
-
 ## After the Role Run
 
 Codex authentication is intentionally manual because it uses OAuth/device-code auth and must not be stored in the role:

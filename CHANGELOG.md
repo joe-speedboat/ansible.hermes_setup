@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Enables `hermes_webui_enabled` by default; set it to `false` for dashboard-only installations. Enabled WebUI deployments require `hermes_webui_password`.
+- Documents that `80/tcp` is opened automatically when `hermes_nginx_http_enabled: true` (the default), serving ACME HTTP-01 challenges and redirecting all other HTTP requests to HTTPS.
+- Updates README, Rocky Linux runbook, install flowchart, and regression tests to match the WebUI and firewall defaults.
+
 ## ansible.hermes_setup v1.3.1 - 2026-07-18
 
 ### Highlights

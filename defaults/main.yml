@@ -63,10 +63,9 @@ hermes_dashboard_auth_password: ""
 hermes_dashboard_auth_secret: ""
 hermes_dashboard_auth_ttl_seconds: 0
 
-# Optional Hermes WebUI service (https://github.com/nesquena/hermes-webui).
-# This is a second browser interface next to the built-in Hermes dashboard.
+# Hermes WebUI service. Installed and enabled by default alongside the dashboard.
 # Keep it bound to loopback and expose it through its own nginx DNS vhost.
-hermes_webui_enabled: false
+hermes_webui_enabled: true
 hermes_webui_service_enabled: true
 hermes_webui_service_state: started
 hermes_webui_repo_url: https://github.com/nesquena/hermes-webui.git
@@ -86,7 +85,7 @@ hermes_webui_extra_args: ""
 # Hermes instance, for example chris-hermes.example.ch -> 127.0.0.1:8081.
 hermes_nginx_enabled: true
 hermes_nginx_http_enabled: true
-hermes_dashboard_nginx_fqdn: "dash-{{ ansible_fqdn | default(inventory_hostname) }}"
+hermes_dashboard_nginx_fqdn: "adm-{{ ansible_fqdn | default(inventory_hostname) }}"
 hermes_dashboard_nginx_conf: "/etc/nginx/conf.d/{{ hermes_dashboard_nginx_fqdn }}.conf"
 hermes_nginx_client_max_body_size: 100m
 hermes_nginx_enable_firewall: true
@@ -104,7 +103,7 @@ hermes_nginx_letsencrypt_challenge_method: webroot
 
 # Optional nginx reverse proxy for Hermes WebUI. This intentionally uses a
 # separate FQDN/vhost from the built-in Hermes dashboard.
-hermes_webui_nginx_fqdn: "web-{{ hermes_dashboard_nginx_fqdn }}"
+hermes_webui_nginx_fqdn: "{{ ansible_fqdn | default(inventory_hostname) }}"
 hermes_webui_nginx_conf: "/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf"
 hermes_webui_nginx_tls_cert: "{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt"
 hermes_webui_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key"

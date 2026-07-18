@@ -106,7 +106,7 @@ flowchart TD
         P35H --> P35I["nginx -t syntax check"]
         P35I --> P35J["Enable/start nginx"]
         P35J --> P35FW["Enable/start firewalld when managed"]
-        P35FW --> P35K["Build effective firewall ports:\n443/tcp + 80/tcp when Let's Encrypt enabled"]
+        P35FW --> P35K["Build effective firewall ports:\n443/tcp + 80/tcp when HTTP listener enabled"]
         P35K --> P35K2["Remove legacy http/https firewalld services"]
         P35K2 --> P35K3["Open configured firewalld ports"]
         P35K3 --> P35K4["firewall-cmd --reload"]
@@ -187,7 +187,7 @@ flowchart LR
         subgraph SYSTEM["System Services (root)"]
             NGINX["nginx\nHTTPS :443\nTLS + reverse proxy\nACME HTTP-01 on :80 when enabled"]
             CERTBOT["certbot\ncombined dashboard/WebUI cert\nrenew timer + nginx deploy hook"]
-            FIREWALL["firewalld\n443/tcp open\n80/tcp when Let's Encrypt enabled"]
+            FIREWALL["firewalld\n443/tcp open\n80/tcp when HTTP listener enabled"]
         end
 
         subgraph HERMES_USER["Hermes User (no sudo)"]
