@@ -246,7 +246,7 @@ sudo -iu hermes hermes --version
 sudo -iu hermes hermes doctor
 ```
 
-If `ansible_enable: true`, the role installs Ansible below `{{ hermes_home }}/ansible`, wires the runtime profile into the Hermes user's `.bashrc`, and verifies it during the run. Manual check:
+If `ansible_enable: true`, the role installs Ansible below `{{ hermes_home }}/ansible`, wires the runtime profile into the Hermes user's `.bashrc`, verifies the executable runtime at `{{ hermes_home }}/ansible/current/bin/ansible`, and reports its version during the run. Manual check:
 
 ```bash
 sudo -iu hermes ansible --version

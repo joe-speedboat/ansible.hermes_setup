@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixes the `ansible_enable: true` verification path to use the installer's active `current/bin/ansible` runtime directly instead of requiring a profile file that may be missing after a partial installation.
 - Enables `hermes_webui_enabled` by default; set it to `false` for dashboard-only installations. Enabled WebUI deployments require `hermes_webui_password`.
 - Documents that `80/tcp` is opened automatically when `hermes_nginx_http_enabled: true` (the default), serving ACME HTTP-01 challenges and redirecting all other HTTP requests to HTTPS.
 - Updates README, Rocky Linux runbook, install flowchart, and regression tests to match the WebUI and firewall defaults.

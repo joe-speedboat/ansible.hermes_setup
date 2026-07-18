@@ -23,11 +23,33 @@
     create: true
   when: ansible_enable | bool
 
+- name: Check Hermes user Ansible runtime exists
+  ansible.builtin.stat:
+    path: "{{ ansible_home }}/current/bin/ansible"
+  register: hermes_ansible_binary
+  when: ansible_enable | bool
+
+- name: Fail clearly when Hermes user Ansible runtime is incomplete
+  ansible.builtin.assert:
+    that:
+      - hermes_ansible_binary.stat.exists
+      - hermes_ansible_binary.stat.isreg
+      - hermes_ansible_binary.stat.executable
+    fail_msg: >-
+      Hermes user Ansible runtime is incomplete: expected executable
+      {{ ansible_home }}/current/bin/ansible. The installer marker may exist
+      although the runtime symlink or binary is missing.
+  when: ansible_enable | bool
+
 - name: Check Hermes user Ansible version
-  ansible.builtin.shell: |
-    runuser -u {{ hermes_user }} -- env HOME={{ hermes_home | quote }} bash -lc "source {{ (ansible_home ~ '/apps/profile.d/ansible.sh') | quote }} && ansible --version"
+  ansible.builtin.command:
+    cmd: "{{ ansible_home }}/current/bin/ansible --version"
+  environment:
+    HOME: "{{ hermes_home }}"
+    ANSIBLE_CONFIG: "{{ ansible_home }}/ansible.cfg"
+  become: true
+  become_user: "{{ hermes_user }}"
   args:
-    executable: /bin/bash
     chdir: "{{ hermes_home }}"
   register: hermes_ansible_version_result
   changed_when: false

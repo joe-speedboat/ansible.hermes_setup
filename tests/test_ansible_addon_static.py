@@ -21,6 +21,11 @@ def test_ansible_addon_is_opt_in_and_runs_as_hermes_user():
     assert "{{ ansible_install_url | quote }}" in tasks
     assert "when: ansible_enable | bool" in tasks
     assert "{{ ansible_home }}/apps/profile.d/ansible.sh" in tasks
+    assert "{{ ansible_home }}/current/bin/ansible" in tasks
+    assert "Hermes user Ansible runtime is incomplete" in tasks
+    assert "ansible.builtin.command:" in tasks
+    assert "source {{ (ansible_home ~ '/apps/profile.d/ansible.sh')" not in tasks
+    assert "become_user: \"{{ hermes_user }}\"" in tasks
     assert "ansible --version" in tasks
 
     assert "`ansible_enable`: install a user-scope Ansible runtime" in readme
