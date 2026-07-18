@@ -2,11 +2,14 @@
 
 ## Unreleased
 
+## ansible.hermes_setup v1.3.1 - 2026-07-18
+
 ### Highlights
 
 - Moves Hermes dashboard authentication from nginx into the official Hermes `dashboard.basic_auth` configuration.
 - Removes nginx Basic Auth from the dashboard and WebUI reverse proxies while keeping nginx for TLS, routing, reverse proxying, and WebSockets.
 - Configures WebUI password authentication through `HERMES_WEBUI_PASSWORD`; no configurable WebUI username is added.
+- Keeps port 80 available for HTTP-01 ACME webroot validation while redirecting normal HTTP requests to HTTPS.
 
 ### Fixes
 
@@ -15,17 +18,19 @@
 - Removes legacy dashboard and WebUI nginx htpasswd files during role execution.
 - Restarts the affected Hermes dashboard and WebUI user services when application-auth configuration changes.
 - Protects credential-bearing Ansible tasks with `no_log: true`.
+- Uses `/var/lib/letsencrypt` as the ACME webroot and keeps the challenge location reachable on port 80 while redirecting other HTTP requests to HTTPS.
 
 ### Documentation
 
 - Updates README and Rocky Linux 10 runbooks for application-owned authentication.
 - Removes active nginx Basic Auth examples and validation instructions from the current documentation.
 - Documents application login checks and the completed idempotency validation path.
+- Documents the HTTP redirect and ACME webroot behavior for public HTTPS deployments.
 
 ### Tests and validation
 
-- `pytest -q` -> `3 passed`.
-- `ansible-playbook tests/nginx_render.yml` -> `ok=6 changed=0 failed=0`.
+- `pytest -q` -> `5 passed`.
+- `ansible-playbook tests/nginx_render.yml` -> successful render and syntax validation.
 - Role syntax check through a temporary Galaxy-style role symlink -> ok.
 - Fresh converge on a Rocky Linux 10.1 lab VM -> `ok=86 changed=1 failed=0`.
 - Second role run for idempotency -> `ok=84 changed=0 failed=0`.

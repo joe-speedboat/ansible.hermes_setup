@@ -27,11 +27,12 @@
     that:
       - hermes_nginx_letsencrypt_email | length > 0
       - hermes_nginx_letsencrypt_mode == 'combined'
+      - hermes_nginx_letsencrypt_challenge_method in ['tls-alpn-01', 'webroot']
       - hermes_nginx_tls_enabled | bool
     fail_msg: >-
       hermes_nginx_letsencrypt_enabled requires a non-empty
-      hermes_nginx_letsencrypt_email, TLS enabled, and the internal combined
-      certificate mode.
+      hermes_nginx_letsencrypt_email, TLS enabled, the internal combined
+      certificate mode, and a supported ACME challenge method.
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_letsencrypt_enabled | bool
@@ -67,6 +68,7 @@
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_letsencrypt_enabled | bool
+    - hermes_nginx_letsencrypt_challenge_method == 'webroot'
 
 - name: Generate self-signed Hermes nginx TLS certificate
   ansible.builtin.command:
@@ -187,6 +189,14 @@
     - hermes_nginx_enabled | bool
     - hermes_dashboard_nginx_conf != '/etc/nginx/conf.d/hermes.conf'
 
+- name: Remove Rocky nginx default HTTP server
+  ansible.builtin.replace:
+    path: /etc/nginx/nginx.conf
+    regexp: '(?ms)\n    server \{\n        listen       80;\n        listen       \[::\]:80;\n        server_name  _;\n        root         /usr/share/nginx/html;\n\n        # Load configuration files for the default server block\.\n        include /etc/nginx/default\.d/\*\.conf;\n    \}\n'
+    replace: "\n"
+  notify: restart nginx
+  when: hermes_nginx_enabled | bool
+
 - name: Write Hermes nginx reverse proxy config
   ansible.builtin.template:
     src: nginx-hermes.conf.j2
@@ -287,7 +297,7 @@
       {{
         (
           firewalld_open_ports
-          + ((hermes_nginx_letsencrypt_enabled | bool) | ternary(['80/tcp'], []))
+          + ((hermes_nginx_http_enabled | bool) | ternary(['80/tcp'], []))
         ) | unique | list
       }}
   when:
@@ -333,6 +343,24 @@
     - hermes_nginx_enable_firewall | bool
     - hermes_nginx_effective_firewalld_open_ports | default(firewalld_open_ports) | length > 0
 
+- name: Remove HTTP port from firewalld for HTTPS-only Hermes nginx
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --remove-port=80/tcp
+  register: hermes_nginx_http_firewalld_result
+  changed_when:
+    - "'success' in hermes_nginx_http_firewalld_result.stdout"
+    - "'NOT_ENABLED' not in hermes_nginx_http_firewalld_result.stderr"
+  failed_when:
+    - hermes_nginx_http_firewalld_result.rc != 0
+    - "'NOT_ENABLED' not in hermes_nginx_http_firewalld_result.stderr"
+  when:
+    - hermes_nginx_enabled | bool
+    - hermes_nginx_enable_firewall | bool
+    - not hermes_nginx_http_enabled | bool
+
 - name: Reload firewalld after Hermes nginx service changes
   ansible.builtin.command:
     cmd: firewall-cmd --reload
@@ -375,12 +403,18 @@
   when:
     - hermes_nginx_enabled | bool
     - hermes_nginx_letsencrypt_enabled | bool
+    - hermes_nginx_letsencrypt_challenge_method == 'webroot'
 
 - name: Request combined Let's Encrypt certificate for Hermes nginx vhosts
   ansible.builtin.command: >-
     certbot certonly
-    --webroot
-    --webroot-path {{ hermes_nginx_letsencrypt_webroot | quote }}
+    {{
+      (
+        '--webroot --webroot-path ' ~ (hermes_nginx_letsencrypt_webroot | quote)
+        if hermes_nginx_letsencrypt_challenge_method == 'webroot'
+        else '--standalone --preferred-challenges tls-alpn-01 --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx"'
+      )
+    }}
     --non-interactive
     --agree-tos
     --email {{ hermes_nginx_letsencrypt_email | quote }}
@@ -415,6 +449,8 @@
   vars:
     hermes_nginx_vhost_tls_cert: "{{ hermes_nginx_letsencrypt_fullchain_path }}"
     hermes_nginx_vhost_tls_key: "{{ hermes_nginx_letsencrypt_privkey_path }}"
+    hermes_nginx_vhost_host: "{{ hermes_dashboard_host }}"
+    hermes_nginx_vhost_port: "{{ hermes_dashboard_port }}"
   notify: restart nginx
   when:
     - hermes_nginx_enabled | bool

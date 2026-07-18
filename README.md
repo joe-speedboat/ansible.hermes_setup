@@ -71,6 +71,8 @@ Important defaults from `defaults/main.yml`:
 - `hermes_webui_default_workspace`: default WebUI workspace. Default: `{{ hermes_home }}/work`
 - `hermes_webui_allowed_origins`: WebUI allowed browser origin. Default: `https://{{ hermes_webui_nginx_fqdn }}`
 - `hermes_nginx_enabled`: install nginx HTTPS reverse proxies for enabled browser UIs. Default: `true`
+- `hermes_nginx_http_enabled`: enable the HTTP listener for the ACME webroot and HTTPS redirect. Default: `true`
+- `hermes_nginx_letsencrypt_challenge_method`: ACME challenge method (`tls-alpn-01` or `webroot`). Default: `webroot`
 - `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: `dash-{{ ansible_fqdn | default(inventory_hostname) }}`
 - `hermes_dashboard_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_dashboard_nginx_fqdn }}.conf`
 - `hermes_nginx_enable_firewall`: manage firewalld ports. Default: `true`
