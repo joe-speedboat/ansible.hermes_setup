@@ -63,10 +63,9 @@ hermes_dashboard_auth_password: ""
 hermes_dashboard_auth_secret: ""
 hermes_dashboard_auth_ttl_seconds: 0
 
-# Optional Hermes WebUI service (https://github.com/nesquena/hermes-webui).
-# This is a second browser interface next to the built-in Hermes dashboard.
+# Hermes WebUI service. Installed and enabled by default alongside the dashboard.
 # Keep it bound to loopback and expose it through its own nginx DNS vhost.
-hermes_webui_enabled: false
+hermes_webui_enabled: true
 hermes_webui_service_enabled: true
 hermes_webui_service_state: started
 hermes_webui_repo_url: https://github.com/nesquena/hermes-webui.git

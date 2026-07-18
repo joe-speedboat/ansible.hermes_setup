@@ -19,6 +19,7 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert "{{ hermes_dashboard_nginx_fqdn }}_tls.key" in defaults
     assert "hermes_dashboard_auth_username:" in defaults
     assert "hermes_dashboard_auth_password_hash:" in defaults
+    assert "hermes_webui_enabled: true" in defaults
     assert "hermes_webui_password:" in defaults
     assert "hermes_dashboard_nginx_basic_auth" not in defaults
     assert "hermes_webui_nginx_basic_auth" not in defaults
