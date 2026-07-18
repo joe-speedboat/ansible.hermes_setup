@@ -11,6 +11,7 @@
 ### Fixes
 
 - Makes dashboard application-auth configuration convergent by comparing existing Hermes settings before applying changes.
+- Fails fast when the enabled dashboard or WebUI has no required application credentials.
 - Removes legacy dashboard and WebUI nginx htpasswd files during role execution.
 - Restarts the affected Hermes dashboard and WebUI user services when application-auth configuration changes.
 - Protects credential-bearing Ansible tasks with `no_log: true`.

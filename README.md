@@ -81,11 +81,11 @@ Important defaults from `defaults/main.yml`:
 - `hermes_nginx_generate_self_signed_cert`: generate a self-signed cert when no external cert is provided. Default: `true`
 - `hermes_nginx_letsencrypt_enabled`: request and use a combined Let's Encrypt certificate for the enabled nginx vhosts. Default: `false`
 - `hermes_nginx_letsencrypt_email`: ACME registration email. Default: `{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}`
-- `hermes_dashboard_auth_username`: application-side dashboard username. Default: empty (no password provider configured)
-- `hermes_dashboard_auth_password_hash`: upstream scrypt password hash. Default: empty
-- `hermes_dashboard_auth_password`: plaintext fallback for the application config. Default: empty; prefer `hermes_dashboard_auth_password_hash`
+- `hermes_dashboard_auth_username`: application-side dashboard username. Default: empty; required when `hermes_dashboard_enabled: true`
+- `hermes_dashboard_auth_password_hash`: upstream scrypt password hash. Default: empty; either this or the plaintext fallback is required when `hermes_dashboard_enabled: true`
+- `hermes_dashboard_auth_password`: plaintext fallback for the application config. Default: empty; prefer `hermes_dashboard_auth_password_hash`; one of the two password variables is required when `hermes_dashboard_enabled: true`
 - `hermes_dashboard_auth_secret`: optional dashboard session-signing secret. Default: empty
-- `hermes_webui_password`: application-side WebUI password. Default: empty
+- `hermes_webui_password`: application-side WebUI password. Default: empty; required when `hermes_webui_enabled: true`
 - `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `web-{{ hermes_dashboard_nginx_fqdn }}`
 - `hermes_webui_nginx_conf`: WebUI nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf`
 - `hermes_webui_nginx_tls_cert`: WebUI certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt`
@@ -101,7 +101,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
 - `hermes_playwright_build_tools_enabled`: install build tools for npm native module rebuilds used by Playwright/Hermes dependencies such as `node-pty`. Default: `true`
 
-> Configure `hermes_dashboard_auth_*` and `hermes_webui_password` with Ansible Vault for every deployment that exposes the applications beyond a disposable lab. nginx does not store or enforce application credentials.
+> The role fails fast when the dashboard is enabled without a username and password/hash, or when the WebUI is enabled without a password. Configure `hermes_dashboard_auth_*` and `hermes_webui_password` with Ansible Vault; the role contains no default password. nginx does not store or enforce application credentials.
 
 ## Example Playbook: single Hermes dashboard behind nginx
 

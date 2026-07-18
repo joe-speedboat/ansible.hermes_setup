@@ -58,7 +58,16 @@
   no_log: true
   when:
     - hermes_dashboard_enabled | bool
-    - hermes_dashboard_auth_username | length > 0 or hermes_dashboard_auth_password_hash | length > 0 or hermes_dashboard_auth_password | length > 0
+
+- name: Validate Hermes WebUI application authentication settings
+  ansible.builtin.assert:
+    that:
+      - hermes_webui_password | length > 0
+    fail_msg: >-
+      WebUI application authentication requires hermes_webui_password.
+      Store it with Ansible Vault; the role has no default password.
+  no_log: true
+  when: hermes_webui_enabled | bool
 
 - name: Read current Hermes dashboard application authentication settings
   ansible.builtin.command:
