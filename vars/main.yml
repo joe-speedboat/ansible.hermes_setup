@@ -9,7 +9,7 @@ hermes_webui_unit_path: "{{ hermes_systemd_user_dir }}/hermes-webui.service"
 hermes_user_systemd_runtime_dir: "/run/user/{{ hermes_user_uid | default('') }}"
 hermes_nginx_letsencrypt_staging: false
 hermes_nginx_letsencrypt_mode: combined
-hermes_nginx_letsencrypt_challenge_method: tls-alpn-01
+hermes_nginx_letsencrypt_challenge_method: webroot
 hermes_nginx_letsencrypt_webroot: /var/lib/letsencrypt
 hermes_nginx_letsencrypt_cert_name: "{{ hermes_dashboard_nginx_fqdn }}"
 hermes_nginx_letsencrypt_fullchain_path: "/etc/letsencrypt/live/{{ hermes_nginx_letsencrypt_cert_name }}/fullchain.pem"

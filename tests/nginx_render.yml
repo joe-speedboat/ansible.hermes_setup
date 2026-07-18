@@ -6,8 +6,8 @@
     hermes_dashboard_nginx_fqdn: chris-hermes.example.ch
     hermes_nginx_tls_enabled: true
     hermes_nginx_letsencrypt_enabled: false
-    hermes_nginx_http_enabled: false
-    hermes_nginx_letsencrypt_challenge_method: tls-alpn-01
+    hermes_nginx_http_enabled: true
+    hermes_nginx_letsencrypt_challenge_method: webroot
     hermes_dashboard_nginx_tls_cert: /etc/pki/tls/hermes-chris/tls.crt
     hermes_dashboard_nginx_tls_key: /etc/pki/tls/hermes-chris/tls.key
     hermes_nginx_client_max_body_size: 100m
