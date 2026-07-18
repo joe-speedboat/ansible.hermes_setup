@@ -56,6 +56,18 @@ def test_nginx_firewall_management_installs_and_starts_firewalld():
     assert "hermes_nginx_enable_firewall | bool" in nginx_tasks
 
 
+def test_https_only_is_the_default_and_http_is_not_added_for_acme():
+    defaults = (ROOT / "defaults/main.yml").read_text()
+    nginx_tasks = (ROOT / "tasks/rhelAll-10/35_nginx.yml").read_text()
+    nginx_template = (ROOT / "templates/nginx-hermes.conf.j2").read_text()
+
+    assert "hermes_nginx_http_enabled: false" in defaults
+    assert "hermes_nginx_letsencrypt_challenge_method: tls-alpn-01" in defaults
+    assert "hermes_nginx_http_enabled | bool" in nginx_template
+    assert "hermes_nginx_letsencrypt_challenge_method == 'webroot'" in nginx_tasks
+    assert "((hermes_nginx_http_enabled | bool) | ternary(['80/tcp'], []))" in nginx_tasks
+
+
 def test_application_authentication_fails_without_required_credentials():
     configure_tasks = (ROOT / "tasks/rhelAll-10/20_install_configure.yml").read_text()
 

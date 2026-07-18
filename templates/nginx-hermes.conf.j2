@@ -3,11 +3,12 @@ map $http_upgrade $connection_upgrade {
     '' close;
 }
 
+{% if hermes_nginx_http_enabled | bool %}
 server {
     listen 80;
     server_name {{ hermes_nginx_vhost_fqdn | default(hermes_dashboard_nginx_fqdn) }};
 
-{% if hermes_nginx_letsencrypt_enabled | bool %}
+{% if hermes_nginx_letsencrypt_enabled | bool and hermes_nginx_letsencrypt_challenge_method == 'webroot' %}
     location ^~ /.well-known/acme-challenge/ {
         root {{ hermes_nginx_letsencrypt_webroot }};
         default_type "text/plain";
@@ -19,6 +20,7 @@ server {
         return 301 https://$host$request_uri;
     }
 }
+{% endif %}
 
 server {
     listen 443 ssl;

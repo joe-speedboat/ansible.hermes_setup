@@ -85,6 +85,7 @@ hermes_webui_extra_args: ""
 # pattern is one Linux user + one loopback dashboard port + one DNS vhost per
 # Hermes instance, for example chris-hermes.example.ch -> 127.0.0.1:8081.
 hermes_nginx_enabled: true
+hermes_nginx_http_enabled: false
 hermes_dashboard_nginx_fqdn: "dash-{{ ansible_fqdn | default(inventory_hostname) }}"
 hermes_dashboard_nginx_conf: "/etc/nginx/conf.d/{{ hermes_dashboard_nginx_fqdn }}.conf"
 hermes_nginx_client_max_body_size: 100m
@@ -99,6 +100,7 @@ hermes_dashboard_nginx_tls_key: "{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_
 hermes_nginx_generate_self_signed_cert: true
 hermes_nginx_letsencrypt_enabled: false
 hermes_nginx_letsencrypt_email: "{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}"
+hermes_nginx_letsencrypt_challenge_method: tls-alpn-01
 
 # Optional nginx reverse proxy for Hermes WebUI. This intentionally uses a
 # separate FQDN/vhost from the built-in Hermes dashboard.
