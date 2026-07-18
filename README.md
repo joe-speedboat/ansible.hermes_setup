@@ -12,8 +12,8 @@ This role is intentionally conservative for sysadmin use:
 - installs, enables, and starts a `hermes-gateway.service` systemd user service by default
 - installs, enables, and starts a loopback-only `hermes-dashboard.service` systemd user service by default
 - optionally installs, enables, and starts a loopback-only `hermes-webui.service` systemd user service
-- optionally exposes the dashboard through nginx HTTPS + Basic Auth
-- optionally exposes Hermes WebUI through a separate nginx HTTPS + Basic Auth DNS vhost
+- exposes the dashboard through nginx HTTPS as a TLS-only reverse proxy; dashboard authentication is configured in Hermes itself
+- optionally exposes Hermes WebUI through a separate nginx HTTPS reverse proxy; WebUI password authentication is configured in the WebUI itself
 - optionally installs a user-scope Ansible runtime for the dedicated `hermes` user
 - installs Playwright runtime packages, the local Playwright npm package, and Chromium browser binaries by default
 
@@ -81,18 +81,15 @@ Important defaults from `defaults/main.yml`:
 - `hermes_nginx_generate_self_signed_cert`: generate a self-signed cert when no external cert is provided. Default: `true`
 - `hermes_nginx_letsencrypt_enabled`: request and use a combined Let's Encrypt certificate for the enabled nginx vhosts. Default: `false`
 - `hermes_nginx_letsencrypt_email`: ACME registration email. Default: `{{ hermes_user }}@{{ hermes_webui_nginx_fqdn }}`
-- `hermes_dashboard_nginx_basic_auth_enabled`: enable nginx Basic Auth. Default: `true`
-- `hermes_dashboard_nginx_basic_auth_file`: htpasswd file path. Default: `/etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}`
-- `hermes_dashboard_nginx_basic_auth_realm`: Basic Auth realm shown by browsers. Default: `{{ hermes_dashboard_nginx_fqdn }}`
-- `hermes_dashboard_nginx_basic_auth_user`: Basic Auth username. Default: `hermes`
-- `hermes_dashboard_nginx_basic_auth_password`: Basic Auth password. Default: `changeme`
+- `hermes_dashboard_auth_username`: application-side dashboard username. Default: empty; required when `hermes_dashboard_enabled: true`
+- `hermes_dashboard_auth_password_hash`: upstream scrypt password hash. Default: empty; either this or the plaintext fallback is required when `hermes_dashboard_enabled: true`
+- `hermes_dashboard_auth_password`: plaintext fallback for the application config. Default: empty; prefer `hermes_dashboard_auth_password_hash`; one of the two password variables is required when `hermes_dashboard_enabled: true`
+- `hermes_dashboard_auth_secret`: optional dashboard session-signing secret. Default: empty
+- `hermes_webui_password`: application-side WebUI password. Default: empty; required when `hermes_webui_enabled: true`
 - `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `web-{{ hermes_dashboard_nginx_fqdn }}`
 - `hermes_webui_nginx_conf`: WebUI nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf`
 - `hermes_webui_nginx_tls_cert`: WebUI certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt`
 - `hermes_webui_nginx_tls_key`: WebUI private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key`
-- `hermes_webui_nginx_basic_auth_enabled`: enable WebUI nginx Basic Auth. Default: `{{ hermes_dashboard_nginx_basic_auth_enabled }}`
-- `hermes_webui_nginx_basic_auth_user`: WebUI Basic Auth username. Default: `{{ hermes_dashboard_nginx_basic_auth_user }}`
-- `hermes_webui_nginx_basic_auth_password`: WebUI Basic Auth password. Default: `{{ hermes_dashboard_nginx_basic_auth_password }}`
 - `ansible_enable`: install a user-scope Ansible runtime for the dedicated Hermes user via `https://ansible-uv.bitbull.ch`. Default: `false`
 - `ansible_home`: Ansible userspace install directory. Default: `{{ hermes_home }}/ansible`
 - `configure_codex`: configure non-secret Codex defaults. Default: `true`
@@ -104,7 +101,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_playwright_smoke_test_enabled`: run a real Chromium headless smoke test after Playwright install. Default: `true`
 - `hermes_playwright_build_tools_enabled`: install build tools for npm native module rebuilds used by Playwright/Hermes dependencies such as `node-pty`. Default: `true`
 
-> Override `hermes_dashboard_nginx_basic_auth_password` with Ansible Vault for every deployment that exposes nginx beyond a disposable lab. The default `hermes` / `changeme` pair is only there so the role converges from defaults.
+> The role fails fast when the dashboard is enabled without a username and password/hash, or when the WebUI is enabled without a password. Configure `hermes_dashboard_auth_*` and `hermes_webui_password` with Ansible Vault; the role contains no default password. nginx does not store or enforce application credentials.
 
 ## Example Playbook: single Hermes dashboard behind nginx
 
@@ -123,10 +120,11 @@ Important defaults from `defaults/main.yml`:
         hermes_dashboard_port: 8080
         hermes_dashboard_insecure: false
 
+        hermes_dashboard_auth_username: dashboard-admin
+        hermes_dashboard_auth_password_hash: "{{ vault_hermes_dashboard_password_hash }}"
+
         hermes_nginx_enabled: true
         hermes_dashboard_nginx_fqdn: hermes.example.ch
-        hermes_dashboard_nginx_basic_auth_user: chris
-        hermes_dashboard_nginx_basic_auth_password: "{{ vault_hermes_dashboard_password }}"
 ...
 ```
 
@@ -159,14 +157,14 @@ Use two DNS names for one Hermes instance when both browser interfaces are enabl
         # Hermes WebUI:
         hermes_webui_nginx_fqdn: hermes1.example.ch
 
-        hermes_dashboard_nginx_basic_auth_user: chris
-        hermes_dashboard_nginx_basic_auth_password: "{{ vault_hermes_password }}"
+        hermes_dashboard_auth_username: dashboard-admin
+        hermes_dashboard_auth_password_hash: "{{ vault_hermes_password_hash }}"
 ...
 ```
 
 ## Example Playbook: multiple Hermes users via DNS vhosts
 
-Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes instance. This avoids subfolder rewrites for `/api/...` and WebSocket endpoints. The nginx TLS certificate/key and htpasswd defaults include `hermes_dashboard_nginx_fqdn`, so multiple role invocations on one VM do not overwrite each other.
+Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes instance. This avoids subfolder rewrites for `/api/...` and WebSocket endpoints.
 
 ```yaml
 ---
@@ -203,10 +201,8 @@ Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes 
 
         hermes_nginx_enabled: true
         hermes_dashboard_nginx_fqdn: "{{ hermes_instance.fqdn }}"
-        # FQDN-scoped defaults keep TLS/key material and htpasswd files separate per vhost.
-        hermes_nginx_tls_dir: /etc/pki/tls/hermes
-        hermes_dashboard_nginx_basic_auth_user: "{{ hermes_instance.auth_user }}"
-        hermes_dashboard_nginx_basic_auth_password: "{{ hermes_instance.auth_password }}"
+        hermes_dashboard_auth_username: "{{ hermes_instance.auth_user }}"
+        hermes_dashboard_auth_password: "{{ hermes_instance.auth_password }}"
 ...
 ```
 
@@ -214,11 +210,11 @@ Use one Linux user, one loopback dashboard port, and one nginx vhost per Hermes 
 
 Hermes dashboard and Hermes WebUI use root-relative frontend assets, REST API routes under `/api/...`, and WebSocket endpoints. DNS vhosts keep those paths unchanged per interface and per instance. Subfolder deployments would require fragile path rewriting and are not recommended.
 
-For the built-in dashboard, the nginx template forwards `Host: 127.0.0.1:<port>` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. For Hermes WebUI, the template preserves the browser-visible `Host` and `X-Forwarded-*` headers and configures `HERMES_WEBUI_ALLOWED_ORIGINS` for the WebUI service. Basic Auth credentials are not forwarded to either backend.
+For the built-in dashboard, the nginx template forwards the configured dashboard bind address as `Host` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. For Hermes WebUI, the template preserves the browser-visible `Host` and `X-Forwarded-*` headers and configures `HERMES_WEBUI_ALLOWED_ORIGINS` for the WebUI service. Authentication is handled by the target application; nginx does not add, remove, or enforce Basic Auth credentials.
 
 When `hermes_nginx_letsencrypt_enabled: true`, the role keeps self-signed certificates as the bootstrap fallback, serves HTTP-01 challenges from `/.well-known/acme-challenge/`, requests one combined Let's Encrypt certificate for the dashboard FQDN plus the WebUI FQDN when WebUI is enabled, and re-renders both nginx vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem` after issuance. Port `80/tcp` must be reachable from the Internet for HTTP-01 validation; when `hermes_nginx_enable_firewall: true`, the role adds it automatically.
 
-For a real disposable cloud lab checklist covering Hetzner VM creation, LuaDNS records, Let's Encrypt issuance, Basic Auth checks, and idempotency expectations, see [`docs/hetzner-lab-letsencrypt.md`](docs/hetzner-lab-letsencrypt.md).
+For a real disposable cloud lab checklist covering Hetzner VM creation, LuaDNS records, Let's Encrypt issuance, application-auth checks, and idempotency expectations, see [`docs/hetzner-lab-letsencrypt.md`](docs/hetzner-lab-letsencrypt.md).
 
 ## After the Role Run
 
@@ -270,20 +266,19 @@ sudo -iu hermes systemctl --user is-enabled hermes-webui.service
 curl -fsS http://127.0.0.1:8787/health
 ```
 
-If `hermes_nginx_enabled: true`, check nginx and the authenticated HTTPS endpoint:
+If `hermes_nginx_enabled: true`, check nginx and the application endpoint:
 
 ```bash
 sudo nginx -t
 curl -skI https://hermes.example.ch/ | sed -n '1,8p'
-curl -skI -u chris:"${HERMES_DASHBOARD_PASSWORD}" https://hermes.example.ch/ | sed -n '1,8p'
 ```
 
-Expected behaviour: the unauthenticated request returns `401 Unauthorized`; the authenticated request reaches the Hermes dashboard.
+The HTTP status and login behavior are supplied by the dashboard/WebUI application configuration, not nginx.
 
 When WebUI is enabled, check its second vhost with a GET request. The WebUI backend does not implement `HEAD` on `/`, so `curl -I` may return `501 Not Implemented` even when a normal browser GET works:
 
 ```bash
-curl -sk https://hermes1.example.ch/ -u chris:"${HERMES_WEBUI_PASSWORD}" | grep -Eo '<title>[^<]+'
+curl -sk https://hermes1.example.ch/
 ```
 
 If Playwright is enabled, the role installs the Rocky/RHEL runtime libraries via `dnf`, installs Chromium with `npx playwright install chromium`, checks direct shared-library dependencies with `ldd`, and then runs a real Chromium headless smoke test. Manual checks:
@@ -334,9 +329,9 @@ sudo -iu hermes hermes pairing approve telegram <CODE>
 
 - The Hermes Linux user is deliberately not added to `wheel` or any sudo group.
 - The dashboard service is loopback-only by default (`127.0.0.1:8080`) and does not need a direct firewall rule.
-- For browser access, prefer `hermes_nginx_enabled: true` with HTTPS and Basic Auth. The default TLS and htpasswd paths are scoped by `hermes_dashboard_nginx_fqdn` to support several Hermes vhosts on the same VM.
+- For browser access, prefer `hermes_nginx_enabled: true` with HTTPS; application authentication is configured in Hermes dashboard/WebUI.
 - Use one DNS vhost per Hermes user. Subfolder deployments are not recommended for Hermes dashboard.
-- Secrets belong in `/home/<user>/.hermes/.env`, `/home/<user>/.hermes/auth.json`, Hermes' auth store, or Ansible Vault variables. Do not commit tokens or real Basic Auth passwords to Git.
+- Secrets belong in `/home/<user>/.hermes/.env`, `/home/<user>/.hermes/auth.json`, Hermes' auth store, or Ansible Vault variables. Do not commit tokens, dashboard password hashes, or WebUI passwords to Git.
 
 ## Manual Setup Documentation
 

@@ -32,13 +32,8 @@ server {
 {% endif %}
     client_max_body_size {{ hermes_nginx_client_max_body_size }};
 
-{% if (hermes_nginx_vhost_basic_auth_enabled | default(hermes_dashboard_nginx_basic_auth_enabled)) | bool %}
-    auth_basic "{{ hermes_nginx_vhost_basic_auth_realm | default(hermes_dashboard_nginx_basic_auth_realm) }}";
-    auth_basic_user_file {{ hermes_nginx_vhost_basic_auth_file | default(hermes_dashboard_nginx_basic_auth_file) }};
-{% endif %}
-
     location / {
-        proxy_pass http://127.0.0.1:{{ hermes_nginx_vhost_port | default(hermes_dashboard_port) }};
+        proxy_pass http://{{ hermes_nginx_vhost_host | default('127.0.0.1') }}:{{ hermes_nginx_vhost_port | default(hermes_dashboard_port) }};
         proxy_http_version 1.1;
 
 {% if (hermes_nginx_vhost_preserve_public_host | default(false)) | bool %}
@@ -48,8 +43,8 @@ server {
         proxy_set_header X-Forwarded-Port 443;
 {% else %}
         # Hermes dashboard validates Host/Origin against its bind target.
-        # Keep upstream headers loopback even when the public vhost is a DNS alias.
-        proxy_set_header Host 127.0.0.1:{{ hermes_nginx_vhost_port | default(hermes_dashboard_port) }};
+        # Use the configured backend address, not the public DNS alias.
+        proxy_set_header Host {{ hermes_nginx_vhost_host | default('127.0.0.1') }}:{{ hermes_nginx_vhost_port | default(hermes_dashboard_port) }};
         proxy_set_header Origin "";
 {% endif %}
 
@@ -61,9 +56,6 @@ server {
         # streaming/long-running API responses. These headers are harmless for both.
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
-
-        # Do not leak nginx Basic Auth credentials to the Hermes backend.
-        proxy_set_header Authorization "";
 
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;

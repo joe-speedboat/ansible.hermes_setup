@@ -388,9 +388,9 @@ curl -fsS http://127.0.0.1:8787/health >/dev/null
 
 The WebUI also listens on loopback only. Expose it with its own DNS vhost, for example `web-hermes.example.ch`, instead of sharing the dashboard vhost.
 
-## 9. Optional nginx HTTPS + Basic Auth Reverse Proxy
+## 9. Optional nginx HTTPS Reverse Proxy with Application Authentication
 
-The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to have the role request one combined Let's Encrypt certificate for the enabled nginx vhosts. For manual setup, install nginx and keep both browser UIs bound to loopback.
+The Ansible role can enable this automatically with `hermes_nginx_enabled: true`. It renders separate vhosts for the built-in dashboard and, when `hermes_webui_enabled: true`, the WebUI. nginx provides TLS, routing, and WebSocket proxying only; authentication belongs to the dashboard and WebUI applications. Configure dashboard authentication with `dashboard.basic_auth` (prefer `password_hash`) and WebUI authentication with `HERMES_WEBUI_PASSWORD`. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to request one combined Let's Encrypt certificate.
 
 Install the reverse-proxy packages:
 
@@ -413,28 +413,6 @@ sudo openssl req -x509 -newkey rsa:4096 -sha256 -days 825 -nodes \
   -subj '/CN=web-hermes.example.ch' \
   -addext 'subjectAltName=DNS:web-hermes.example.ch'
 sudo chmod 0600 /etc/pki/tls/hermes/hermes.example.ch_tls.key /etc/pki/tls/hermes/web-hermes.example.ch_tls.key
-```
-
-Create `/etc/nginx/.htpasswd-hermes-hermes.example.ch` with a SHA-512 crypt hash. Use a real password, ideally sourced from a secret manager or Ansible Vault:
-
-```bash
-python3 - <<'PY' | sudo tee /etc/nginx/.htpasswd-hermes-hermes.example.ch >/dev/null
-import crypt, getpass
-user = 'chris'
-password = getpass.getpass('Basic Auth password: ')
-print(f'{user}:{crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))}')
-PY
-sudo chown root:nginx /etc/nginx/.htpasswd-hermes-hermes.example.ch
-sudo chmod 0640 /etc/nginx/.htpasswd-hermes-hermes.example.ch
-
-python3 - <<'PY' | sudo tee /etc/nginx/.htpasswd-hermes-web-hermes.example.ch >/dev/null
-import crypt, getpass
-user = 'chris'
-password = getpass.getpass('WebUI Basic Auth password: ')
-print(f'{user}:{crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))}')
-PY
-sudo chown root:nginx /etc/nginx/.htpasswd-hermes-web-hermes.example.ch
-sudo chmod 0640 /etc/nginx/.htpasswd-hermes-web-hermes.example.ch
 ```
 
 Create the dashboard vhost `/etc/nginx/conf.d/hermes.example.ch.conf`:
@@ -464,8 +442,6 @@ server {
 
     client_max_body_size 100m;
 
-    auth_basic "hermes.example.ch";
-    auth_basic_user_file /etc/nginx/.htpasswd-hermes-hermes.example.ch;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -478,7 +454,6 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Authorization "";
 
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
@@ -488,7 +463,7 @@ server {
 }
 ```
 
-Create a separate WebUI vhost `/etc/nginx/conf.d/web-hermes.example.ch.conf` when `hermes_webui_enabled: true`. Use a separate FQDN, certificate/key, and htpasswd file:
+Create a separate WebUI vhost `/etc/nginx/conf.d/web-hermes.example.ch.conf` when `hermes_webui_enabled: true`. Use a separate FQDN and certificate/key; do not add nginx Basic Auth directives.
 
 ```nginx
 server {
@@ -515,8 +490,6 @@ server {
 
     client_max_body_size 100m;
 
-    auth_basic "web-hermes.example.ch";
-    auth_basic_user_file /etc/nginx/.htpasswd-hermes-web-hermes.example.ch;
 
     location / {
         proxy_pass http://127.0.0.1:8787;
@@ -552,7 +525,7 @@ sudo firewall-cmd --permanent --add-port=80/tcp
 sudo firewall-cmd --reload
 ```
 
-For public DNS names, verify that HTTP-01 challenge files bypass Basic Auth and redirects before asking Let's Encrypt for a certificate:
+For public DNS names, verify that HTTP-01 challenge files bypass the normal redirect before asking Let's Encrypt for a certificate:
 
 ```bash
 printf acme-ok | sudo tee /var/lib/letsencrypt/.well-known/acme-challenge/hermes-test >/dev/null
@@ -606,18 +579,18 @@ sudo certbot certificates
 echo | openssl s_client -connect hermes.example.ch:443 -servername hermes.example.ch 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName
 echo | openssl s_client -connect web-hermes.example.ch:443 -servername web-hermes.example.ch 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName
 curl -skI https://hermes.example.ch/ | sed -n '1,8p'
-curl -skI -u chris:'<password>' https://hermes.example.ch/ | sed -n '1,8p'
 curl -skI https://web-hermes.example.ch/ | sed -n '1,8p'
-curl -skI -u chris:'<password>' https://web-hermes.example.ch/ | sed -n '1,8p'
+# Use the dashboard application's login flow and the WebUI /api/auth/login endpoint
+# with credentials stored outside this document.
 ```
 
 Manual mapping to the role's Phase 35 nginx tasks:
 
 | Ansible task | Manual setup equivalent |
 |---|---|
-| Validate Hermes nginx reverse proxy settings | Confirm dashboard FQDN, loopback bind, TLS, and Basic Auth values before writing vhosts. |
+| Validate Hermes nginx reverse proxy settings | Confirm dashboard FQDN, loopback bind, TLS, and application-auth settings before writing vhosts. |
 | Validate Hermes WebUI nginx reverse proxy settings | Confirm WebUI uses a separate FQDN and loopback bind when WebUI is enabled. |
-| Warn when Hermes nginx Basic Auth uses the default password | Use a real Basic Auth password from a secret manager or Ansible Vault, never `changeme`. |
+| Configure application authentication | Configure dashboard `basic_auth` and WebUI password authentication in the target applications, not in nginx. |
 | Validate Hermes nginx Let's Encrypt settings | Confirm ACME email, TLS enabled, public DNS, and combined certificate intent before running Certbot. |
 | Install nginx for Hermes reverse proxy | `dnf install nginx openssl policycoreutils-python-utils firewalld certbot`. |
 | Ensure Hermes nginx TLS directory exists | `mkdir -p /etc/pki/tls/hermes`. |
@@ -629,12 +602,10 @@ Manual mapping to the role's Phase 35 nginx tasks:
 | Set Hermes WebUI nginx TLS private key permissions | `chmod 0600` on the WebUI private key. |
 | Set Hermes WebUI nginx TLS certificate permissions | Keep the WebUI certificate world-readable, typically `0644`. |
 | Check existing Hermes Let's Encrypt certificate | Check `/etc/letsencrypt/live/<cert-name>/fullchain.pem` before deciding which TLS paths to use. |
-| Write Hermes nginx Basic Auth password file | Create `/etc/nginx/.htpasswd-hermes-hermes.example.ch` with a SHA-512 crypt hash. |
-| Remove Hermes nginx Basic Auth password file when disabled | Delete the dashboard htpasswd file if Basic Auth is intentionally disabled. |
+| Remove legacy Hermes nginx password file | Delete a dashboard htpasswd file left by an older role version. |
 | Remove legacy Hermes nginx reverse proxy config path | Remove stale `/etc/nginx/conf.d/hermes.conf` when using FQDN-scoped config paths. |
 | Write Hermes nginx reverse proxy config | Create `/etc/nginx/conf.d/hermes.example.ch.conf`. |
-| Write Hermes WebUI nginx Basic Auth password file | Create `/etc/nginx/.htpasswd-hermes-web-hermes.example.ch` with a SHA-512 crypt hash. |
-| Remove Hermes WebUI nginx Basic Auth password file when disabled | Delete the WebUI htpasswd file if Basic Auth is intentionally disabled. |
+| Remove legacy Hermes WebUI nginx password file | Delete a WebUI htpasswd file left by an older role version. |
 | Write Hermes WebUI nginx reverse proxy config | Create `/etc/nginx/conf.d/web-hermes.example.ch.conf`. |
 | Allow nginx to proxy Hermes dashboard under SELinux | `setsebool -P httpd_can_network_connect 1`. |
 | Validate nginx configuration | `nginx -t` before starting/reloading nginx. |
@@ -654,9 +625,9 @@ Manual mapping to the role's Phase 35 nginx tasks:
 | Validate nginx configuration after Let's Encrypt certificate switch | `nginx -t` after changing certificate paths. |
 | Enable certbot renewal timer when available | `systemctl enable --now certbot-renew.timer`. |
 
-For multiple Hermes users, use one DNS vhost per Linux user and browser UI port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files, private keys, and htpasswd files scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
+For multiple Hermes users, use one DNS vhost per Linux user and browser UI port, for example `chris-hermes.example.ch -> 127.0.0.1:8081` and `dev-hermes.example.ch -> 127.0.0.1:8082`. Keep certificate files and private keys scoped by FQDN (as shown above) so one vhost cannot overwrite another. Avoid subfolders because Hermes uses root-relative `/api/...` and WebSocket endpoints.
 
-For a full cloud-lab validation checklist with DNS-before-ACME ordering, Basic Auth checks, certificate SAN verification, and final idempotency expectations, see [`hetzner-lab-letsencrypt.md`](hetzner-lab-letsencrypt.md).
+For a full cloud-lab validation checklist with DNS-before-ACME ordering, application-auth checks, certificate SAN verification, and final idempotency expectations, see [`hetzner-lab-letsencrypt.md`](hetzner-lab-letsencrypt.md).
 
 ## 10. Pair Messaging Platforms such as Telegram
 
@@ -770,8 +741,8 @@ playwright-ok
 
 ## 12. Production Hardening Hints
 
-For production browser access, prefer `hermes_nginx_enabled: true`: keep the dashboard and WebUI loopback-only and expose only nginx HTTPS with Basic Auth. SSH tunnelling is also fine for single-admin maintenance. Do not expose `8080/tcp` directly unless the surrounding network is trusted and separately protected.
+For production browser access, prefer `hermes_nginx_enabled: true`: expose only nginx HTTPS and configure authentication in the dashboard/WebUI applications. Do not expose `8080/tcp` directly unless the surrounding network is trusted and separately protected.
 
 For multiple operators or customers, use one Linux user and one DNS vhost per Hermes instance. Subfolder deployments are intentionally avoided because Hermes dashboard and WebUI use root-relative `/api/...` and WebSocket endpoints.
 
-Secrets should never be stored in this repository. Put Hermes provider secrets in the user's Hermes home or auth store, and put nginx Basic Auth passwords in Ansible Vault or another secret manager.
+Secrets should never be stored in this repository. Put Hermes provider secrets in the user's Hermes home or auth store, dashboard password hashes in Ansible Vault or another secret manager, and WebUI passwords in protected Ansible variables.

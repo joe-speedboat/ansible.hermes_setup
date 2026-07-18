@@ -17,10 +17,11 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert 'hermes_webui_nginx_fqdn: "web-{{ hermes_dashboard_nginx_fqdn }}"' in defaults
     assert "{{ hermes_dashboard_nginx_fqdn }}_tls.crt" in defaults
     assert "{{ hermes_dashboard_nginx_fqdn }}_tls.key" in defaults
-    assert "/etc/nginx/.htpasswd-hermes-{{ hermes_dashboard_nginx_fqdn }}" in defaults
-    assert 'hermes_dashboard_nginx_basic_auth_realm: "{{ hermes_dashboard_nginx_fqdn }}"' in defaults
-    assert 'hermes_webui_nginx_basic_auth_enabled: "{{ hermes_dashboard_nginx_basic_auth_enabled }}"' in defaults
-    assert 'hermes_webui_nginx_basic_auth_password: "{{ hermes_dashboard_nginx_basic_auth_password }}"' in defaults
+    assert "hermes_dashboard_auth_username:" in defaults
+    assert "hermes_dashboard_auth_password_hash:" in defaults
+    assert "hermes_webui_password:" in defaults
+    assert "hermes_dashboard_nginx_basic_auth" not in defaults
+    assert "hermes_webui_nginx_basic_auth" not in defaults
 
     epel_task_index = prepare_tasks.index("Install repository packages before Hermes packages")
     base_task_index = prepare_tasks.index("Install Hermes base packages")
@@ -53,3 +54,21 @@ def test_nginx_firewall_management_installs_and_starts_firewalld():
     assert "enabled: true" in nginx_tasks
     assert "state: started" in nginx_tasks
     assert "hermes_nginx_enable_firewall | bool" in nginx_tasks
+
+
+def test_application_authentication_fails_without_required_credentials():
+    configure_tasks = (ROOT / "tasks/rhelAll-10/20_install_configure.yml").read_text()
+
+    dashboard_validation = configure_tasks.split(
+        "- name: Read current Hermes dashboard application authentication settings", 1
+    )[0]
+    webui_validation = configure_tasks.split(
+        "- name: Validate Hermes WebUI application authentication settings", 1
+    )[1].split("- name: Read current Hermes dashboard application authentication settings", 1)[0]
+
+    assert "- hermes_dashboard_enabled | bool" in dashboard_validation
+    assert "- hermes_dashboard_auth_username | length > 0" in dashboard_validation
+    assert "hermes_dashboard_auth_password_hash | length > 0" in dashboard_validation
+    assert "hermes_dashboard_auth_password | length > 0" in dashboard_validation
+    assert "when: hermes_webui_enabled | bool" in webui_validation
+    assert "- hermes_webui_password | length > 0" in webui_validation

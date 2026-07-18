@@ -2,6 +2,22 @@
 # This role mostly manages services directly in tasks because systemd user
 # services require the target user's DBus runtime environment.
 
+- name: restart Hermes dashboard
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user restart hermes-dashboard.service
+  changed_when: false
+
+- name: restart Hermes WebUI
+  ansible.builtin.command: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    systemctl --user restart hermes-webui.service
+  changed_when: false
+
 - name: restart nginx
   ansible.builtin.systemd:
     name: nginx

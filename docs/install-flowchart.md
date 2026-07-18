@@ -87,9 +87,9 @@ flowchart TD
         direction TB
         P35A{"nginx\nenabled?"}
         P35A -->|no| P35_SKIP(("⏭️"))
-        P35A -->|yes| P35B["Validate dashboard nginx settings:\nFQDN, loopback host, TLS, Basic Auth"]
-        P35B --> P35B2["Validate WebUI nginx settings when WebUI enabled:\nseparate FQDN, loopback host, TLS, Basic Auth"]
-        P35B2 --> P35C["Warn if dashboard Basic Auth password is still 'changeme'"]
+        P35A -->|yes| P35B["Validate dashboard nginx settings:\nFQDN, bind address, TLS"]
+        P35B --> P35B2["Validate WebUI nginx settings when WebUI enabled:\nseparate FQDN, bind address, TLS"]
+        P35B2 --> P35C["Application authentication is configured in dashboard/WebUI"]
         P35C --> P35C2["Validate Let's Encrypt settings when enabled:\nemail, combined mode, TLS"]
         P35C2 --> P35D["dnf install nginx openssl firewalld\npolicycoreutils-python-utils\n+ certbot when Let's Encrypt enabled"]
         P35D --> P35D2["Ensure TLS directory exists"]
@@ -97,10 +97,10 @@ flowchart TD
         P35D3 --> P35E["Generate dashboard self-signed TLS cert\n+ set key/cert permissions"]
         P35E --> P35E2["Generate WebUI self-signed TLS cert\n+ set key/cert permissions"]
         P35E2 --> P35E3["Check existing Let's Encrypt certificate"]
-        P35E3 --> P35F["Write/remove dashboard Basic Auth file"]
+        P35E3 --> P35F["Remove legacy dashboard htpasswd file"]
         P35F --> P35F2["Remove legacy /etc/nginx/conf.d/hermes.conf"]
         P35F2 --> P35G["Template dashboard nginx config\nself-signed or existing Let's Encrypt cert"]
-        P35G --> P35G2["Write/remove WebUI Basic Auth file"]
+        P35G --> P35G2["Remove legacy WebUI htpasswd file"]
         P35G2 --> P35G3["Template WebUI nginx config\nself-signed or existing Let's Encrypt cert"]
         P35G3 --> P35H["SELinux: setsebool httpd_can_network_connect 1"]
         P35H --> P35I["nginx -t syntax check"]
@@ -185,7 +185,7 @@ flowchart LR
 
     subgraph HOST["Rocky Linux 10 Host"]
         subgraph SYSTEM["System Services (root)"]
-            NGINX["nginx\nHTTPS :443\nTLS + Basic Auth\nACME HTTP-01 on :80 when enabled"]
+            NGINX["nginx\nHTTPS :443\nTLS + reverse proxy\nACME HTTP-01 on :80 when enabled"]
             CERTBOT["certbot\ncombined dashboard/WebUI cert\nrenew timer + nginx deploy hook"]
             FIREWALL["firewalld\n443/tcp open\n80/tcp when Let's Encrypt enabled"]
         end
@@ -225,6 +225,6 @@ flowchart LR
 | 20 | **Install & Configure** | Hermes CLI via upstream `install.sh`, `config set` provider/model, optional WebUI checkout/env | ❌ |
 | 25 | **Ansible Runtime** | `curl \| sh` → `~/ansible/apps/`, .bashrc integration | ✅ `ansible_enable` |
 | 30 | **Systemd Services** | Template → `hermes-gateway.service`, `hermes-dashboard.service`, optional `hermes-webui.service`, enable+start via `--user` | ✅ gateway/dashboard/WebUI toggles |
-| 35 | **nginx Proxy** | Bootstrap self-signed TLS, optional combined Let's Encrypt cert, `.htpasswd`, dashboard/WebUI nginx configs, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
+| 35 | **nginx Proxy** | Bootstrap self-signed TLS, optional combined Let's Encrypt cert, legacy-auth cleanup, dashboard/WebUI nginx configs, SELinux, firewalld | ✅ `hermes_nginx_enabled` |
 | 40 | **Playwright** | `npm install playwright`, `npx playwright install chromium`, `ldd` check, smoke test | ✅ `hermes_playwright_enabled` |
 | 50 | **Next Steps** | Print manual `hermes auth add openai-codex` instructions | ❌ |
