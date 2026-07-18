@@ -5,6 +5,11 @@
     state: present
   when: hermes_repo_packages | length > 0
 
+- name: Synchronize Node.js runtime packages before Hermes packages
+  ansible.builtin.dnf:
+    name: "{{ hermes_node_packages }}"
+    state: latest
+
 - name: Install Hermes base packages
   ansible.builtin.dnf:
     name: "{{ hermes_base_packages }}"

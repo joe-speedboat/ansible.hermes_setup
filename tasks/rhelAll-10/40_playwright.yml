@@ -1,4 +1,20 @@
 ---
+- name: Validate Node.js and npm runtime before Playwright installation
+  ansible.builtin.command:
+    argv:
+      - /bin/bash
+      - -lc
+      - "node --version && npm --version"
+  become: true
+  become_user: "{{ hermes_user }}"
+  environment:
+    HOME: "{{ hermes_home }}"
+  args:
+    chdir: "{{ hermes_project_path }}"
+  register: hermes_node_runtime_check
+  changed_when: false
+  when: hermes_playwright_enabled | bool
+
 - name: Check local Playwright package in Hermes project
   ansible.builtin.command: >-
     runuser -u {{ hermes_user }} -- env HOME={{ hermes_home }}

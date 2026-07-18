@@ -39,7 +39,12 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert 'name: "{{ hermes_base_packages }}"' in prepare_tasks
     assert 'name: "{{ hermes_playwright_build_tools_packages }}"' in prepare_tasks
     assert "hermes_playwright_build_tools_enabled | bool" in prepare_tasks
-    assert "hermes_playwright_build_tools_enabled: true" in defaults
+    assert "hermes_node_packages:" in defaults
+    assert "  - nodejs-libs" in defaults
+    assert "  - c-ares" in defaults
+    assert "Synchronize Node.js runtime packages before Hermes packages" in prepare_tasks
+    assert "state: latest" in prepare_tasks
+    assert "Validate Node.js and npm runtime before Playwright installation" in (ROOT / "tasks/rhelAll-10/40_playwright.yml").read_text()
 
 
 def test_nginx_firewall_management_installs_and_starts_firewalld():

@@ -290,7 +290,7 @@ When WebUI is enabled, check its second vhost with a GET request. The WebUI back
 curl -sk https://hermes1.example.ch/
 ```
 
-If Playwright is enabled, the role installs the Rocky/RHEL runtime libraries via `dnf`, installs Chromium with `npx playwright install chromium`, checks direct shared-library dependencies with `ldd`, and then runs a real Chromium headless smoke test. Manual checks:
+If Playwright is enabled, the role first synchronizes the Rocky Node.js runtime packages (`nodejs`, `nodejs-libs`, `npm`, and `c-ares`) before running npm. This repairs hosts with a partial Node/c-ares update that would otherwise fail with a `symbol lookup error`. It then installs the Rocky/RHEL runtime libraries via `dnf`, installs Chromium with `npx playwright install chromium`, checks direct shared-library dependencies with `ldd`, and runs a real Chromium headless smoke test.
 
 ```bash
 sudo -iu hermes bash -lc 'ldd ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell | grep "not found"'
