@@ -73,7 +73,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_nginx_enabled`: install nginx HTTPS reverse proxies for enabled browser UIs. Default: `true`
 - `hermes_nginx_http_enabled`: enable the HTTP listener for the ACME webroot and HTTPS redirect. Default: `true`
 - `hermes_nginx_letsencrypt_challenge_method`: ACME challenge method (`tls-alpn-01` or `webroot`). Default: `webroot`
-- `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: `dash-{{ ansible_fqdn | default(inventory_hostname) }}`
+- `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: `adm-{{ ansible_fqdn | default(inventory_hostname) }}`
 - `hermes_dashboard_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_dashboard_nginx_fqdn }}.conf`
 - `hermes_nginx_enable_firewall`: manage firewalld ports. Default: `true`
 - `firewalld_open_ports`: list of ports to open in firewalld when nginx firewall management is enabled. Default: `['443/tcp']`
@@ -88,7 +88,7 @@ Important defaults from `defaults/main.yml`:
 - `hermes_dashboard_auth_password`: plaintext fallback for the application config. Default: empty; prefer `hermes_dashboard_auth_password_hash`; one of the two password variables is required when `hermes_dashboard_enabled: true`
 - `hermes_dashboard_auth_secret`: optional dashboard session-signing secret. Default: empty
 - `hermes_webui_password`: application-side WebUI password. Default: empty; required when `hermes_webui_enabled: true`
-- `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `web-{{ hermes_dashboard_nginx_fqdn }}`
+- `hermes_webui_nginx_fqdn`: public WebUI DNS name for the second nginx vhost. Default: `{{ ansible_fqdn | default(inventory_hostname) }}`
 - `hermes_webui_nginx_conf`: WebUI nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_webui_nginx_fqdn }}.conf`
 - `hermes_webui_nginx_tls_cert`: WebUI certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.crt`
 - `hermes_webui_nginx_tls_key`: WebUI private key path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_webui_nginx_fqdn }}_tls.key`

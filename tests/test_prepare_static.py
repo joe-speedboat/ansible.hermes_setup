@@ -13,8 +13,8 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert "  - git" in defaults
     assert "  - gh" in defaults
     assert "  - ripgrep" in defaults
-    assert 'hermes_dashboard_nginx_fqdn: "dash-{{ ansible_fqdn | default(inventory_hostname) }}"' in defaults
-    assert 'hermes_webui_nginx_fqdn: "web-{{ hermes_dashboard_nginx_fqdn }}"' in defaults
+    assert 'hermes_dashboard_nginx_fqdn: "adm-{{ ansible_fqdn | default(inventory_hostname) }}"' in defaults
+    assert 'hermes_webui_nginx_fqdn: "{{ ansible_fqdn | default(inventory_hostname) }}"' in defaults
     assert "{{ hermes_dashboard_nginx_fqdn }}_tls.crt" in defaults
     assert "{{ hermes_dashboard_nginx_fqdn }}_tls.key" in defaults
     assert "hermes_dashboard_auth_username:" in defaults
