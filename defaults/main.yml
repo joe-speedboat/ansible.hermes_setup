@@ -37,7 +37,15 @@ hermes_base_packages:
   - nodejs
   - npm
 
-# Gateway systemd user service. Installed and enabled by default; platform pairing/tokens remain manual.
+# Keep the Node.js runtime and its shared-library dependencies synchronized.
+# `state: latest` repairs hosts where nodejs-libs and c-ares were left at
+# incompatible versions by a partial package update.
+hermes_node_packages:
+  - nodejs
+  - nodejs-libs
+  - npm
+  - c-ares
+
 hermes_gateway_enabled: true
 hermes_gateway_service_enabled: true
 hermes_gateway_service_state: started
