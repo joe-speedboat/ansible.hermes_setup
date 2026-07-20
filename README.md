@@ -71,12 +71,14 @@ Important defaults from `defaults/main.yml`:
 - `hermes_webui_state_dir`: WebUI state directory. Default: `{{ hermes_config_dir }}/webui`
 - `hermes_webui_default_workspace`: default WebUI workspace. Default: `{{ hermes_home }}/work`
 - `hermes_webui_allowed_origins`: WebUI allowed browser origin. Default: `https://{{ hermes_webui_nginx_fqdn }}`
+- `hermes_webui_max_upload_mb`: maximum WebUI upload size in MiB. Default: `220`; the WebUI receives this value as `HERMES_WEBUI_MAX_UPLOAD_MB`
 - `hermes_nginx_enabled`: install nginx HTTPS reverse proxies for enabled browser UIs. Default: `true`
 - `hermes_nginx_http_enabled`: enable the HTTP listener on `80/tcp` for the ACME webroot and HTTP-to-HTTPS redirect. Default: `true`
 - `hermes_nginx_letsencrypt_challenge_method`: ACME challenge method (`tls-alpn-01` or `webroot`). Default: `webroot`
 - `hermes_dashboard_nginx_fqdn`: public dashboard DNS name for the nginx vhost. Default: `adm-{{ ansible_fqdn | default(inventory_hostname) }}`
 - `hermes_dashboard_nginx_conf`: nginx vhost config path. Default: `/etc/nginx/conf.d/{{ hermes_dashboard_nginx_fqdn }}.conf`
 - `hermes_nginx_enable_firewall`: manage firewalld ports. Default: `true`
+- `hermes_nginx_client_max_body_size`: nginx request-body limit. Default: `{{ hermes_webui_max_upload_mb }}m`, derived from the WebUI upload limit; override only when intentionally different
 - `firewalld_open_ports`: base list of ports to open in firewalld when nginx firewall management is enabled. Default: `['443/tcp']`; `80/tcp` is added automatically when `hermes_nginx_http_enabled: true`
 - `hermes_nginx_tls_dir`: directory for role-managed self-signed TLS material. Default: `/etc/pki/tls/hermes`
 - `hermes_dashboard_nginx_tls_cert`: certificate path. Default: `{{ hermes_nginx_tls_dir }}/{{ hermes_dashboard_nginx_fqdn }}_tls.crt`
@@ -219,8 +221,9 @@ Hermes dashboard and Hermes WebUI use root-relative frontend assets, REST API ro
 
 For the built-in dashboard, the nginx template forwards the configured dashboard bind address as `Host` and clears `Origin` so Hermes' dashboard Host/Origin protections continue to work behind the reverse proxy. For Hermes WebUI, the template preserves the browser-visible `Host` and `X-Forwarded-*` headers and configures `HERMES_WEBUI_ALLOWED_ORIGINS` for the WebUI service. Authentication is handled by the target application; nginx does not add, remove, or enforce Basic Auth credentials.
 
-When `hermes_nginx_enabled: true`, the role exposes the enabled browser interfaces through nginx on HTTPS port `443/tcp`. Because `hermes_nginx_http_enabled` defaults to `true`, it also opens `80/tcp`; port 80 serves only the ACME challenge path and redirects all other requests to HTTPS. Set `hermes_nginx_http_enabled: false` only when using a certificate workflow that does not require HTTP-01 and you explicitly want HTTPS-only behavior.
+For large WebUI uploads, configure the same limit in the application and nginx. The role defaults to `220 MiB` via `hermes_webui_max_upload_mb: 220`; nginx derives `hermes_nginx_client_max_body_size` as `220m`. If you override either value, keep nginx at least as large as the WebUI limit so nginx does not reject the request first.
 
+When `hermes_nginx_enabled: true`, the role exposes the enabled browser interfaces through nginx on HTTPS port `443/tcp`. Because `hermes_nginx_http_enabled` defaults to `true`, it also opens `80/tcp`; port 80 serves only the ACME challenge path and redirects all other requests to HTTPS. Set `hermes_nginx_http_enabled: false` only when using a certificate workflow that does not require HTTP-01 and you explicitly want HTTPS-only behavior.
 
 When `hermes_nginx_letsencrypt_enabled: true`, the role keeps self-signed certificates as the bootstrap fallback, serves HTTP-01 challenges from `/.well-known/acme-challenge/`, requests one combined Let's Encrypt certificate for the dashboard FQDN plus the WebUI FQDN when WebUI is enabled, and re-renders both nginx vhosts to use `/etc/letsencrypt/live/{{ hermes_dashboard_nginx_fqdn }}/fullchain.pem` and `privkey.pem` after issuance. Port `80/tcp` must be reachable from the Internet for HTTP-01 validation; when `hermes_nginx_enable_firewall: true`, the role adds it automatically.
 

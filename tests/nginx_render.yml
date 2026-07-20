@@ -10,7 +10,8 @@
     hermes_nginx_letsencrypt_challenge_method: webroot
     hermes_dashboard_nginx_tls_cert: /etc/pki/tls/hermes-chris/tls.crt
     hermes_dashboard_nginx_tls_key: /etc/pki/tls/hermes-chris/tls.key
-    hermes_nginx_client_max_body_size: 100m
+    hermes_nginx_client_max_body_size: "{{ hermes_webui_max_upload_mb }}m"
+    hermes_webui_max_upload_mb: 220
     hermes_dashboard_port: 8081
     hermes_webui_port: 8787
     hermes_webui_nginx_fqdn: webui.example.ch
@@ -36,6 +37,7 @@
           - "'server_name chris-hermes.example.ch;' in rendered_nginx_text"
           - "'auth_basic ' not in rendered_nginx_text"
           - "'auth_basic_user_file' not in rendered_nginx_text"
+          - "'client_max_body_size 220m;' in rendered_nginx_text"
           - "'proxy_pass http://127.0.0.1:8081;' in rendered_nginx_text"
           - "'proxy_set_header Host 127.0.0.1:8081;' in rendered_nginx_text"
           - "'proxy_set_header Origin \"\";' in rendered_nginx_text"
@@ -69,6 +71,7 @@
           - "'server_name webui.example.ch;' in rendered_webui_nginx_text"
           - "'auth_basic ' not in rendered_webui_nginx_text"
           - "'auth_basic_user_file' not in rendered_webui_nginx_text"
+          - "'client_max_body_size 220m;' in rendered_webui_nginx_text"
           - "'proxy_pass http://127.0.0.1:8787;' in rendered_webui_nginx_text"
           - "'proxy_set_header Host $host;' in rendered_webui_nginx_text"
           - "'proxy_set_header X-Forwarded-Host $host;' in rendered_webui_nginx_text"
