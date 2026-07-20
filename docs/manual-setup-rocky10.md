@@ -401,6 +401,29 @@ hermes_bootstrap_include_auth: false
 
 `missing` preserves existing target files. `overwrite` replaces matching files. Keep the bootstrap directory outside the repository when it contains private configuration, and protect it with the same care as Ansible Vault data. Bootstrap tasks run with `no_log: true` and restart affected Hermes user services when content changes.
 
+## 8.2 Persistent SSH client state
+
+The role prepares the Hermes user's persistent SSH client state by default:
+
+```yaml
+hermes_ssh_setup: true
+hermes_ssh_generate_key: "{{ hermes_ssh_setup }}"
+hermes_ssh_key_type: ed25519
+hermes_ssh_key_path: /home/hermes/.ssh/id_ed25519
+hermes_ssh_known_hosts_path: /home/hermes/.ssh/known_hosts
+```
+
+The role creates `/home/hermes/.ssh` with mode `0700` and `known_hosts` with mode `0644`. With key generation enabled, `openssh-clients` is installed and an empty-passphrase keypair is generated only if the private key is missing. Existing private keys are never overwritten. Supported key types are `ed25519`, `rsa`, and `ecdsa`; custom paths must remain below `/home/hermes/.ssh`. Set `hermes_ssh_setup: false` to disable the whole phase.
+
+Verify the resulting ownership and modes as user `hermes`:
+
+```bash
+sudo stat -c '%U:%G %a %n' /home/hermes/.ssh /home/hermes/.ssh/known_hosts /home/hermes/.ssh/id_ed25519
+sudo -iu hermes ssh-keygen -lf /home/hermes/.ssh/id_ed25519.pub
+```
+
+Never copy private key contents into Git, playbook output, or issue/PR text.
+
 ## 9. nginx HTTPS Reverse Proxy with Application Authentication
 
 The Ansible role enables this by default with `hermes_nginx_enabled: true` and `hermes_webui_enabled: true`. Set `hermes_webui_enabled: false` for a dashboard-only deployment. It renders separate vhosts for the built-in dashboard and WebUI. nginx provides TLS, routing, and WebSocket proxying only; authentication belongs to the dashboard and WebUI applications. Configure dashboard authentication with `dashboard.basic_auth` (prefer `password_hash`) and WebUI authentication with `HERMES_WEBUI_PASSWORD`. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to request one combined Let's Encrypt certificate.

@@ -41,7 +41,22 @@ flowchart TD
         P20X --> P20Z
     end
 
-    PHASE_20 --> PHASE_22
+    PHASE_20 --> PHASE_21
+
+    subgraph PHASE_21["🔑 Phase 21: Persistent SSH Client State (optional)"]
+        direction TB
+        P21A{"SSH setup\nenabled?"}
+        P21A -->|no| P21_SKIP(("⏭️"))
+        P21A -->|yes| P21B["Install openssh-clients\ncreate ~/.ssh 0700"]
+        P21B --> P21C["Create known_hosts\n0644 if missing"]
+        P21C --> P21D{"Generate key\nenabled?"}
+        P21D -->|yes| P21E["Generate configured keypair\nonly when private key is missing"]
+        P21D -->|no| P21F(("⏭️"))
+        P21E --> P21G["Enforce private/public\nkey permissions"]
+        P21F --> P21G
+    end
+
+    PHASE_21 --> PHASE_22
 
     subgraph PHASE_22["📥 Phase 22: Controller-side Bootstrap (optional)"]
         direction TB

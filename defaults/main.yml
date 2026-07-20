@@ -37,6 +37,10 @@ hermes_base_packages:
   - nodejs
   - npm
 
+# Packages required only for the optional persistent SSH client state.
+hermes_ssh_packages:
+  - openssh-clients
+
 # Keep the Node.js runtime and its shared-library dependencies synchronized.
 # `state: latest` repairs hosts where nodejs-libs and c-ares were left at
 # incompatible versions by a partial package update.
@@ -90,6 +94,14 @@ hermes_webui_max_upload_mb: 220
 # The WebUI authenticates itself with this optional application password.
 hermes_webui_password: ""
 hermes_webui_extra_args: ""
+
+# Optional SSH client state for the Hermes user.
+# The keypair is generated only when missing; existing private keys are never replaced.
+hermes_ssh_setup: true
+hermes_ssh_generate_key: "{{ hermes_ssh_setup }}"
+hermes_ssh_key_type: ed25519
+hermes_ssh_key_path: "{{ hermes_home }}/.ssh/id_ed25519"
+hermes_ssh_known_hosts_path: "{{ hermes_home }}/.ssh/known_hosts"
 
 # Optional controller-side bootstrap content for an existing Hermes home.
 # `missing` preserves target files; `overwrite` replaces matching content.

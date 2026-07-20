@@ -15,6 +15,14 @@
     name: "{{ hermes_base_packages }}"
     state: present
 
+- name: Install Hermes SSH client packages when enabled
+  ansible.builtin.dnf:
+    name: "{{ hermes_ssh_packages }}"
+    state: present
+  when:
+    - hermes_ssh_setup | bool
+    - hermes_ssh_packages | length > 0
+
 - name: Install Playwright runtime packages when enabled
   ansible.builtin.dnf:
     name: "{{ hermes_playwright_runtime_packages }}"

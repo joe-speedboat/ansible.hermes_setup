@@ -98,6 +98,12 @@ hermes_webui_password: "{{ vault_hermes_webui_password }}"
 
 The role must fail fast when an enabled dashboard lacks a username plus password/hash, or when an enabled WebUI lacks its password. nginx must not use Basic Auth or `.htpasswd` files for these applications.
 
+### Persistent SSH client state
+
+When `hermes_ssh_setup` is enabled, phase 21 creates `{{ hermes_home }}/.ssh` with mode `0700` and an empty `known_hosts` file with mode `0644`, both owned by the Hermes user. When `hermes_ssh_generate_key` is enabled, `openssh-clients` is installed and an `ed25519` keypair is generated only when `{{ hermes_ssh_key_path }}` is absent. Existing private keys are never overwritten. Supported key types are `ed25519`, `rsa`, and `ecdsa`; configured key paths must remain below `{{ hermes_home }}/.ssh`.
+
+Verify the directory, ownership, modes, key type, and a second run. If SSH setup is disabled, the task phase must not create or modify `.ssh` state. Do not place private key material in the repository or in reports.
+
 ### Controller-side bootstrap
 
 Bootstrap is implemented in `tasks/rhelAll-10/22_bootstrap.yml`, after the Hermes/WebUI directories are created by phase 20 and before the optional Ansible runtime in phase 25. It uses only `ansible.builtin.assert`, `ansible.builtin.stat`, and `ansible.builtin.copy`; `meta/main.yml` intentionally remains `dependencies: []`, and the repository has no `requirements.yml` or `galaxy.yml` dependency file.

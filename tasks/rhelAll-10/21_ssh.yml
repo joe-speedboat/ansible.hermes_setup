@@ -1,0 +1,92 @@
+---
+- name: Validate Hermes SSH settings
+  ansible.builtin.assert:
+    that:
+      - hermes_ssh_key_type in ['ed25519', 'rsa', 'ecdsa']
+      - hermes_ssh_key_path.startswith(hermes_home + '/.ssh/')
+      - hermes_ssh_known_hosts_path.startswith(hermes_home + '/.ssh/')
+    fail_msg: >-
+      hermes_ssh_key_type must be ed25519, rsa, or ecdsa, and SSH paths must
+      remain below hermes_home/.ssh.
+  when: hermes_ssh_setup | bool
+
+- name: Ensure Hermes SSH directory exists
+  ansible.builtin.file:
+    path: "{{ hermes_home }}/.ssh"
+    state: directory
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0700'
+  when: hermes_ssh_setup | bool
+
+- name: Ensure Hermes SSH known_hosts file exists
+  ansible.builtin.file:
+    path: "{{ hermes_ssh_known_hosts_path }}"
+    state: touch
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0644'
+    access_time: preserve
+    modification_time: preserve
+  when: hermes_ssh_setup | bool
+
+- name: Check whether the Hermes SSH private key exists
+  ansible.builtin.stat:
+    path: "{{ hermes_ssh_key_path }}"
+  register: hermes_ssh_private_key_stat
+  when:
+    - hermes_ssh_setup | bool
+    - hermes_ssh_generate_key | bool
+
+- name: Generate Hermes SSH keypair when missing
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -t
+      - "{{ hermes_ssh_key_type }}"
+      - -N
+      - ''
+      - -C
+      - "hermes-agent@{{ hermes_user }}"
+      - -f
+      - "{{ hermes_ssh_key_path }}"
+  args:
+    creates: "{{ hermes_ssh_key_path }}"
+  register: hermes_ssh_keygen_result
+  no_log: true
+  when:
+    - hermes_ssh_setup | bool
+    - hermes_ssh_generate_key | bool
+    - not hermes_ssh_private_key_stat.stat.exists
+
+- name: Ensure Hermes SSH private key permissions
+  ansible.builtin.file:
+    path: "{{ hermes_ssh_key_path }}"
+    state: file
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0600'
+  when:
+    - hermes_ssh_setup | bool
+    - hermes_ssh_generate_key | bool
+    - hermes_ssh_private_key_stat.stat.exists or (hermes_ssh_keygen_result is defined and hermes_ssh_keygen_result is changed)
+
+- name: Check whether the Hermes SSH public key exists
+  ansible.builtin.stat:
+    path: "{{ hermes_ssh_key_path }}.pub"
+  register: hermes_ssh_public_key_stat
+  when:
+    - hermes_ssh_setup | bool
+    - hermes_ssh_generate_key | bool
+
+- name: Ensure Hermes SSH public key permissions when present
+  ansible.builtin.file:
+    path: "{{ hermes_ssh_key_path }}.pub"
+    state: file
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0644'
+  when:
+    - hermes_ssh_setup | bool
+    - hermes_ssh_generate_key | bool
+    - hermes_ssh_public_key_stat.stat.exists

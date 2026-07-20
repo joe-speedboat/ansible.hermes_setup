@@ -7,8 +7,9 @@
 - Enables `hermes_webui_enabled` by default; set it to `false` for dashboard-only installations. Enabled WebUI deployments require `hermes_webui_password`.
 - Documents that `80/tcp` is opened automatically when `hermes_nginx_http_enabled: true` (the default), serving ACME HTTP-01 challenges and redirecting all other HTTP requests to HTTPS.
 - Adds a 220 MiB WebUI upload default and derives the nginx request-body limit from it so both layers accept the same uploads.
+- Adds persistent SSH client setup with `hermes_ssh_setup`, `hermes_ssh_generate_key`, configurable key type/path, `known_hosts`, and an explicit `openssh-clients` dependency; existing private keys are never overwritten.
 - Adds optional controller-side bootstrap support with `disabled`, `missing`, and `overwrite` modes for Hermes configuration, state, and workspace content; `auth.json` remains excluded unless explicitly enabled.
-- Updates README, Rocky Linux runbook, install flowchart, and regression tests to match the WebUI and firewall defaults.
+- Updates README, Rocky Linux runbook, install flowchart, and regression tests to match the WebUI, SSH, bootstrap, and firewall defaults.
 
 ## ansible.hermes_setup v1.3.1 - 2026-07-18
 
