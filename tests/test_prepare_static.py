@@ -21,6 +21,9 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert "hermes_dashboard_auth_password_hash:" in defaults
     assert "hermes_webui_enabled: true" in defaults
     assert "hermes_webui_password:" in defaults
+    assert "hermes_webui_max_upload_mb: 220" in defaults
+    assert 'hermes_nginx_client_max_body_size: "{{ hermes_webui_max_upload_mb }}m"' in defaults
+    assert "HERMES_WEBUI_MAX_UPLOAD_MB={{ hermes_webui_max_upload_mb }}" in (ROOT / "templates/hermes-webui.env.j2").read_text()
     assert "hermes_dashboard_nginx_basic_auth" not in defaults
     assert "hermes_webui_nginx_basic_auth" not in defaults
 

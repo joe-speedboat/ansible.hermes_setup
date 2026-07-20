@@ -324,6 +324,7 @@ HERMES_WEBUI_PORT=8787
 HERMES_WEBUI_STATE_DIR=/home/hermes/.hermes/webui
 HERMES_WEBUI_DEFAULT_WORKSPACE=/home/hermes/work
 HERMES_WEBUI_ALLOWED_ORIGINS=https://web-hermes.example.ch
+HERMES_WEBUI_MAX_UPLOAD_MB=220
 EOF
 sudo chown hermes:hermes /home/hermes/app/hermes-webui/.env
 sudo chmod 0640 /home/hermes/app/hermes-webui/.env
@@ -440,7 +441,7 @@ server {
     ssl_certificate_key /etc/pki/tls/hermes/hermes.example.ch_tls.key;
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    client_max_body_size 100m;
+    client_max_body_size 220m;
 
 
     location / {
@@ -488,7 +489,7 @@ server {
     ssl_certificate_key /etc/pki/tls/hermes/web-hermes.example.ch_tls.key;
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    client_max_body_size 100m;
+    client_max_body_size 220m;
 
 
     location / {
