@@ -1,0 +1,92 @@
+---
+- name: Validate Hermes bootstrap settings
+  ansible.builtin.assert:
+    that:
+      - hermes_bootstrap_mode in ['disabled', 'missing', 'overwrite']
+      - (hermes_bootstrap_mode == 'disabled') or (hermes_bootstrap_dir | length > 0)
+    fail_msg: >-
+      hermes_bootstrap_mode must be disabled, missing, or overwrite; an
+      enabled bootstrap mode requires hermes_bootstrap_dir.
+  when: hermes_bootstrap_dir | length > 0 or hermes_bootstrap_mode != 'disabled'
+
+- name: Check Hermes bootstrap source directory on controller
+  ansible.builtin.stat:
+    path: "{{ hermes_bootstrap_dir }}"
+  delegate_to: localhost
+  become: false
+  register: hermes_bootstrap_dir_stat
+  when: hermes_bootstrap_dir | length > 0 and hermes_bootstrap_mode != 'disabled'
+
+- name: Fail when configured Hermes bootstrap directory is unavailable
+  ansible.builtin.assert:
+    that:
+      - hermes_bootstrap_dir_stat.stat.exists
+      - hermes_bootstrap_dir_stat.stat.isdir
+    fail_msg: >-
+      hermes_bootstrap_dir must exist and be a directory on the Ansible
+      controller: {{ hermes_bootstrap_dir }}
+  when: hermes_bootstrap_dir | length > 0 and hermes_bootstrap_mode != 'disabled'
+
+- name: Check Hermes bootstrap source entries on controller
+  ansible.builtin.stat:
+    path: "{{ hermes_bootstrap_dir }}/{{ item.source }}"
+  loop: "{{ hermes_bootstrap_items }}"
+  loop_control:
+    label: "{{ item.source }}"
+  delegate_to: localhost
+  become: false
+  register: hermes_bootstrap_source_stats
+  when: hermes_bootstrap_dir | length > 0 and hermes_bootstrap_mode != 'disabled'
+
+- name: Copy Hermes bootstrap content
+  ansible.builtin.copy:
+    src: "{{ hermes_bootstrap_dir }}/{{ item.0.source }}"
+    dest: "{{ item.0.destination }}"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: "{{ item.0.mode | default(omit) }}"
+    directory_mode: '0755'
+    force: "{{ hermes_bootstrap_mode == 'overwrite' }}"
+  loop: "{{ hermes_bootstrap_items | zip(hermes_bootstrap_source_stats.results) | list }}"
+  loop_control:
+    label: "{{ item.0.source }}"
+  no_log: true
+  notify:
+    - restart Hermes gateway
+    - restart Hermes dashboard
+    - restart Hermes WebUI
+  when:
+    - hermes_bootstrap_dir | length > 0
+    - hermes_bootstrap_mode != 'disabled'
+    - item.1.stat.exists
+
+- name: Check optional Hermes bootstrap auth file on controller
+  ansible.builtin.stat:
+    path: "{{ hermes_bootstrap_dir }}/auth.json"
+  delegate_to: localhost
+  become: false
+  register: hermes_bootstrap_auth_stat
+  when:
+    - hermes_bootstrap_dir | length > 0
+    - hermes_bootstrap_mode != 'disabled'
+    - hermes_bootstrap_include_auth | bool
+
+- name: Copy optional Hermes bootstrap auth file
+  ansible.builtin.copy:
+    src: "{{ hermes_bootstrap_dir }}/auth.json"
+    dest: "{{ hermes_config_dir }}/auth.json"
+    owner: "{{ hermes_user }}"
+    group: "{{ hermes_group }}"
+    mode: '0600'
+    force: "{{ hermes_bootstrap_mode == 'overwrite' }}"
+  no_log: true
+  notify:
+    - restart Hermes gateway
+    - restart Hermes dashboard
+    - restart Hermes WebUI
+  when:
+    - hermes_bootstrap_dir | length > 0
+    - hermes_bootstrap_mode != 'disabled'
+    - hermes_bootstrap_include_auth | bool
+    - hermes_bootstrap_auth_stat.stat.exists
+...

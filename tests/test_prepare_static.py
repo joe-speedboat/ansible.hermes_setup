@@ -24,6 +24,10 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert "hermes_webui_max_upload_mb: 220" in defaults
     assert 'hermes_nginx_client_max_body_size: "{{ hermes_webui_max_upload_mb }}m"' in defaults
     assert "HERMES_WEBUI_MAX_UPLOAD_MB={{ hermes_webui_max_upload_mb }}" in (ROOT / "templates/hermes-webui.env.j2").read_text()
+    assert "hermes_bootstrap_dir: \"\"" in defaults
+    assert "hermes_bootstrap_mode: disabled" in defaults
+    assert "hermes_bootstrap_include_auth: false" in defaults
+    assert "auth.json" not in defaults.split("hermes_bootstrap_items:", 1)[1]
     assert "hermes_dashboard_nginx_basic_auth" not in defaults
     assert "hermes_webui_nginx_basic_auth" not in defaults
 
@@ -48,6 +52,21 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert "Synchronize Node.js runtime packages before Hermes packages" in prepare_tasks
     assert "state: latest" in prepare_tasks
     assert "Validate Node.js and npm runtime before Playwright installation" in (ROOT / "tasks/rhelAll-10/40_playwright.yml").read_text()
+
+
+def test_bootstrap_task_supports_safe_modes_and_optional_auth():
+    bootstrap_tasks = (ROOT / "tasks/rhelAll-10/22_bootstrap.yml").read_text()
+
+    assert "hermes_bootstrap_mode in ['disabled', 'missing', 'overwrite']" in bootstrap_tasks
+    assert "force: \"{{ hermes_bootstrap_mode == 'overwrite' }}\"" in bootstrap_tasks
+    assert "hermes_bootstrap_include_auth | bool" in bootstrap_tasks
+    assert "dest: \"{{ hermes_config_dir }}/auth.json\"" in bootstrap_tasks
+    assert "no_log: true" in bootstrap_tasks
+    handlers = (ROOT / "handlers/main.yml").read_text()
+    assert "- name: restart Hermes gateway" in handlers
+    assert "systemctl --user restart hermes-gateway.service" in handlers
+    assert "restart Hermes dashboard" in bootstrap_tasks
+    assert "restart Hermes WebUI" in bootstrap_tasks
 
 
 def test_nginx_firewall_management_installs_and_starts_firewalld():

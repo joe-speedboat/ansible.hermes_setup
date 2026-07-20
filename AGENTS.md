@@ -98,6 +98,22 @@ hermes_webui_password: "{{ vault_hermes_webui_password }}"
 
 The role must fail fast when an enabled dashboard lacks a username plus password/hash, or when an enabled WebUI lacks its password. nginx must not use Basic Auth or `.htpasswd` files for these applications.
 
+### Controller-side bootstrap
+
+Bootstrap is implemented in `tasks/rhelAll-10/22_bootstrap.yml`, after the Hermes/WebUI directories are created by phase 20 and before the optional Ansible runtime in phase 25. It uses only `ansible.builtin.assert`, `ansible.builtin.stat`, and `ansible.builtin.copy`; `meta/main.yml` intentionally remains `dependencies: []`, and the repository has no `requirements.yml` or `galaxy.yml` dependency file.
+
+The controller source is selected with:
+
+```yaml
+hermes_bootstrap_dir: "{{ playbook_dir }}/files/hermes-bootstrap"
+hermes_bootstrap_mode: missing       # disabled, missing, or overwrite
+hermes_bootstrap_include_auth: false
+```
+
+Supported entries are `SOUL.md`, `config.yaml`, `.env`, `memories/`, `skills/`, `plugins/`, `cron/`, and `workspace/`. `missing` preserves existing target content; `overwrite` replaces matching content; `disabled` is the safe default. `auth.json` is excluded unless the explicit opt-in is enabled, and credential-bearing copy tasks use `no_log: true`. Bootstrap changes notify the gateway, dashboard, and WebUI handlers; each user-service handler first checks that its unit exists.
+
+For bootstrap changes, verify source validation, both copy modes, excluded auth, ownership and modes, service behavior, and a second run. Keep the source outside the repository when it contains private state. The flowchart in `docs/install-flowchart.md` and the detailed role documentation in `README.md` and `docs/manual-setup-rocky10.md` must remain synchronized with this task order.
+
 ### Network contract
 
 - nginx HTTPS is public on `443/tcp`.

@@ -389,6 +389,18 @@ curl -fsS http://127.0.0.1:8787/health >/dev/null
 
 The WebUI also listens on loopback only. Expose it with its own DNS vhost, for example `web-hermes.example.ch`, instead of sharing the dashboard vhost.
 
+## 8.1 Optional Ansible Bootstrap
+
+The role can copy controller-side Hermes content into the persistent VM home after the Hermes and WebUI directories exist. Supported source entries are `SOUL.md`, `config.yaml`, `.env`, `memories/`, `skills/`, `plugins/`, `cron/`, and `workspace/`. `auth.json` is excluded unless explicitly enabled.
+
+```yaml
+hermes_bootstrap_dir: "{{ playbook_dir }}/files/hermes-bootstrap"
+hermes_bootstrap_mode: missing       # disabled, missing, or overwrite
+hermes_bootstrap_include_auth: false
+```
+
+`missing` preserves existing target files. `overwrite` replaces matching files. Keep the bootstrap directory outside the repository when it contains private configuration, and protect it with the same care as Ansible Vault data. Bootstrap tasks run with `no_log: true` and restart affected Hermes user services when content changes.
+
 ## 9. nginx HTTPS Reverse Proxy with Application Authentication
 
 The Ansible role enables this by default with `hermes_nginx_enabled: true` and `hermes_webui_enabled: true`. Set `hermes_webui_enabled: false` for a dashboard-only deployment. It renders separate vhosts for the built-in dashboard and WebUI. nginx provides TLS, routing, and WebSocket proxying only; authentication belongs to the dashboard and WebUI applications. Configure dashboard authentication with `dashboard.basic_auth` (prefer `password_hash`) and WebUI authentication with `HERMES_WEBUI_PASSWORD`. For public DNS names, set `hermes_nginx_letsencrypt_enabled: true` to request one combined Let's Encrypt certificate.

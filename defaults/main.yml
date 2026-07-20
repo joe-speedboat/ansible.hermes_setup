@@ -91,6 +91,34 @@ hermes_webui_max_upload_mb: 220
 hermes_webui_password: ""
 hermes_webui_extra_args: ""
 
+# Optional controller-side bootstrap content for an existing Hermes home.
+# `missing` preserves target files; `overwrite` replaces matching content.
+# auth.json is excluded unless hermes_bootstrap_include_auth is explicitly true.
+hermes_bootstrap_dir: ""
+hermes_bootstrap_mode: disabled
+hermes_bootstrap_include_auth: false
+hermes_bootstrap_items:
+  - source: SOUL.md
+    destination: "{{ hermes_config_dir }}/SOUL.md"
+    mode: '0600'
+  - source: config.yaml
+    destination: "{{ hermes_config_dir }}/config.yaml"
+    mode: '0600'
+  - source: .env
+    destination: "{{ hermes_config_dir }}/.env"
+    mode: '0600'
+  - source: memories/
+    destination: "{{ hermes_config_dir }}/memories"
+  - source: skills/
+    destination: "{{ hermes_config_dir }}/skills"
+  - source: plugins/
+    destination: "{{ hermes_config_dir }}/plugins"
+  - source: cron/
+    destination: "{{ hermes_config_dir }}/cron"
+  - source: workspace/
+    destination: "{{ hermes_webui_default_workspace }}"
+
+
 # Optional nginx reverse proxy for the Hermes dashboard. The intended multi-user
 # pattern is one Linux user + one loopback dashboard port + one DNS vhost per
 # Hermes instance, for example chris-hermes.example.ch -> 127.0.0.1:8081.
