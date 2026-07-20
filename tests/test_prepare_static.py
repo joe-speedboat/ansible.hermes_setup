@@ -28,6 +28,12 @@ def test_repo_packages_are_installed_before_base_packages_and_hermes_cli_tools_a
     assert "hermes_bootstrap_mode: disabled" in defaults
     assert "hermes_bootstrap_include_auth: false" in defaults
     assert "auth.json" not in defaults.split("hermes_bootstrap_items:", 1)[1]
+    assert "hermes_ssh_setup: true" in defaults
+    assert "hermes_ssh_generate_key: \"{{ hermes_ssh_setup }}\"" in defaults
+    assert "hermes_ssh_key_type: ed25519" in defaults
+    assert 'hermes_ssh_key_path: "{{ hermes_home }}/.ssh/id_ed25519"' in defaults
+    assert "hermes_ssh_packages:" in defaults
+    assert "  - openssh-clients" in defaults
     assert "hermes_dashboard_nginx_basic_auth" not in defaults
     assert "hermes_webui_nginx_basic_auth" not in defaults
 
@@ -67,6 +73,24 @@ def test_bootstrap_task_supports_safe_modes_and_optional_auth():
     assert "systemctl --user restart hermes-gateway.service" in handlers
     assert "restart Hermes dashboard" in bootstrap_tasks
     assert "restart Hermes WebUI" in bootstrap_tasks
+
+
+def test_ssh_setup_is_persistent_and_does_not_overwrite_keys():
+    defaults = (ROOT / "defaults/main.yml").read_text()
+    ssh_tasks = (ROOT / "tasks/rhelAll-10/21_ssh.yml").read_text()
+
+    assert "hermes_ssh_setup: true" in defaults
+    assert "hermes_ssh_key_type in ['ed25519', 'rsa', 'ecdsa']" in ssh_tasks
+    assert "hermes_ssh_key_path.startswith(hermes_home + '/.ssh/')" in ssh_tasks
+    assert "state: touch" in ssh_tasks
+    assert "mode: '0700'" in ssh_tasks
+    assert "mode: '0644'" in ssh_tasks
+    assert "ssh-keygen" in ssh_tasks
+    assert "creates: \"{{ hermes_ssh_key_path }}\"" in ssh_tasks
+    assert "not hermes_ssh_private_key_stat.stat.exists" in ssh_tasks
+    prepare_tasks = (ROOT / "tasks/rhelAll-10/10_prepare.yml").read_text()
+    assert "Install Hermes SSH client packages when enabled" in prepare_tasks
+    assert "hermes_ssh_setup | bool" in prepare_tasks
 
 
 def test_nginx_firewall_management_installs_and_starts_firewalld():

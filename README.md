@@ -72,6 +72,11 @@ Important defaults from `defaults/main.yml`:
 - `hermes_webui_default_workspace`: default WebUI workspace. Default: `{{ hermes_home }}/work`
 - `hermes_webui_allowed_origins`: WebUI allowed browser origin. Default: `https://{{ hermes_webui_nginx_fqdn }}`
 - `hermes_webui_max_upload_mb`: maximum WebUI upload size in MiB. Default: `220`; the WebUI receives this value as `HERMES_WEBUI_MAX_UPLOAD_MB`
+- `hermes_ssh_setup`: create persistent `{{ hermes_home }}/.ssh` and `known_hosts`. Default: `true`
+- `hermes_ssh_generate_key`: generate the configured keypair when the private key is missing. Default: follows `hermes_ssh_setup`
+- `hermes_ssh_key_type`: SSH key type. Default: `ed25519`; supported values: `ed25519`, `rsa`, `ecdsa`
+- `hermes_ssh_key_path`: private key path. Default: `{{ hermes_home }}/.ssh/id_ed25519`; paths must remain below `{{ hermes_home }}/.ssh`
+- `hermes_ssh_known_hosts_path`: known-hosts path. Default: `{{ hermes_home }}/.ssh/known_hosts`
 - `hermes_bootstrap_dir`: controller-side directory containing optional Hermes bootstrap files. Default: empty/disabled
 - `hermes_bootstrap_mode`: bootstrap behavior: `disabled`, `missing` (preserve existing target files), or `overwrite`. Default: `disabled`
 - `hermes_bootstrap_include_auth`: also copy `auth.json` from the bootstrap directory. Default: `false`; keep disabled unless the source is protected
