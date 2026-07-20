@@ -72,6 +72,9 @@ Important defaults from `defaults/main.yml`:
 - `hermes_webui_default_workspace`: default WebUI workspace. Default: `{{ hermes_home }}/work`
 - `hermes_webui_allowed_origins`: WebUI allowed browser origin. Default: `https://{{ hermes_webui_nginx_fqdn }}`
 - `hermes_webui_max_upload_mb`: maximum WebUI upload size in MiB. Default: `220`; the WebUI receives this value as `HERMES_WEBUI_MAX_UPLOAD_MB`
+- `hermes_bootstrap_dir`: controller-side directory containing optional Hermes bootstrap files. Default: empty/disabled
+- `hermes_bootstrap_mode`: bootstrap behavior: `disabled`, `missing` (preserve existing target files), or `overwrite`. Default: `disabled`
+- `hermes_bootstrap_include_auth`: also copy `auth.json` from the bootstrap directory. Default: `false`; keep disabled unless the source is protected
 - `hermes_nginx_enabled`: install nginx HTTPS reverse proxies for enabled browser UIs. Default: `true`
 - `hermes_nginx_http_enabled`: enable the HTTP listener on `80/tcp` for the ACME webroot and HTTP-to-HTTPS redirect. Default: `true`
 - `hermes_nginx_letsencrypt_challenge_method`: ACME challenge method (`tls-alpn-01` or `webroot`). Default: `webroot`
@@ -108,7 +111,33 @@ Important defaults from `defaults/main.yml`:
 
 > The role fails fast when the dashboard is enabled without a username and password/hash, or when the WebUI is enabled without a password. Configure `hermes_dashboard_auth_*` and `hermes_webui_password` with Ansible Vault; the role contains no default password. nginx does not store or enforce application credentials.
 
-## Example Playbook: single Hermes dashboard behind nginx
+### Optional bootstrap
+
+Set `hermes_bootstrap_dir` to a directory on the Ansible controller containing any of:
+
+```text
+SOUL.md
+config.yaml
+.env
+memories/
+skills/
+plugins/
+cron/
+workspace/
+auth.json              # excluded by default
+```
+
+Use `hermes_bootstrap_mode: missing` to copy only files that are not already present on the target, or `hermes_bootstrap_mode: overwrite` to replace matching files. The default is `disabled`. `auth.json` is copied only when `hermes_bootstrap_include_auth: true` is explicitly set; store the bootstrap source outside the repository and protect it like a credential file. Bootstrap content is copied to `{{ hermes_home }}/.hermes` and the configured WebUI workspace, with Hermes ownership and restrictive file modes.
+
+Example:
+
+```yaml
+hermes_bootstrap_dir: "{{ playbook_dir }}/files/hermes-bootstrap"
+hermes_bootstrap_mode: missing
+hermes_bootstrap_include_auth: false
+```
+
+### Example Playbook: single Hermes dashboard behind nginx
 
 ```yaml
 ---

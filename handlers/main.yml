@@ -2,20 +2,28 @@
 # This role mostly manages services directly in tasks because systemd user
 # services require the target user's DBus runtime environment.
 
-- name: restart Hermes dashboard
-  ansible.builtin.command: >-
+- name: restart Hermes gateway
+  ansible.builtin.shell: >-
     runuser -u {{ hermes_user }} -- env
     XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
-    systemctl --user restart hermes-dashboard.service
+    bash -c 'if systemctl --user cat hermes-gateway.service >/dev/null 2>&1; then systemctl --user restart hermes-gateway.service; fi'
+  changed_when: false
+
+- name: restart Hermes dashboard
+  ansible.builtin.shell: >-
+    runuser -u {{ hermes_user }} -- env
+    XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
+    bash -c 'if systemctl --user cat hermes-dashboard.service >/dev/null 2>&1; then systemctl --user restart hermes-dashboard.service; fi'
   changed_when: false
 
 - name: restart Hermes WebUI
-  ansible.builtin.command: >-
+  ansible.builtin.shell: >-
     runuser -u {{ hermes_user }} -- env
     XDG_RUNTIME_DIR=/run/user/{{ hermes_user_uid }}
     DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{ hermes_user_uid }}/bus
-    systemctl --user restart hermes-webui.service
+    bash -c 'if systemctl --user cat hermes-webui.service >/dev/null 2>&1; then systemctl --user restart hermes-webui.service; fi'
   changed_when: false
 
 - name: restart nginx

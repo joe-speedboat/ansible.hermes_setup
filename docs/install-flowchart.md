@@ -41,7 +41,22 @@ flowchart TD
         P20X --> P20Z
     end
 
-    PHASE_20 --> P25_ANSIBLE
+    PHASE_20 --> PHASE_22
+
+    subgraph PHASE_22["📥 Phase 22: Controller-side Bootstrap (optional)"]
+        direction TB
+        P22A{"Bootstrap\nenabled?"}
+        P22A -->|no| P22_SKIP(("⏭️"))
+        P22A -->|yes| P22B["Validate controller source\ndirectory and entries"]
+        P22B --> P22C{"Mode"}
+        P22C -->|missing| P22D["Copy only missing Hermes\nconfig/state/workspace content"]
+        P22C -->|overwrite| P22E["Replace matching Hermes\nconfig/state/workspace content"]
+        P22D --> P22F["auth.json excluded by default\noptional protected opt-in"]
+        P22E --> P22F
+        P22F --> P22G["Restart existing affected\nHermes user services"]
+    end
+
+    PHASE_22 --> P25_ANSIBLE
 
     subgraph P25_ANSIBLE["🔧 Phase 25: Ansible Runtime (optional)"]
         direction TB
